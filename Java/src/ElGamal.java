@@ -91,18 +91,24 @@ public class ElGamal {
     // KIỂM TRA PHẦN TỬ SINH
     public static boolean isGenerator(int g, int p) {
 
-        boolean[] visited = new boolean[p];
+        int phi = p - 1;
+        int temp = phi;
 
-        long value = 1;
+        for (int q = 2; q * q <= temp; q++) {
+            if (isFactor(p, q)) {
+                if (modPow(g, phi / q, p) == 1) {
+                    return false;
+                }
+                while (temp % q == 0) {
+                    temp /= q;
+                }
+            }
+        }
 
-        for (int i = 1; i < p; i++) {
-
-            value = (value * g) % p;
-
-            if (visited[(int)value])
+        if (temp > 1 && isFactor(p, temp)) {
+            if (modPow(g, phi / temp, p) == 1) {
                 return false;
-
-            visited[(int)value] = true;
+            }
         }
 
         return true;
