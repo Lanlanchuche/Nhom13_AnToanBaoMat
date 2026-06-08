@@ -300,7 +300,13 @@ public class ElgamalUI extends JFrame {
     private int getPrivateKey()  { return parse(isAuto() ? txtX_a : txtX_m); }
     private int getPublickey()  { return parse(isAuto() ? txtY_a : txtY_m); }
     private int getK()  { return parse(isAuto() ? txtK_a : txtK_m); }
-    private int parse(JTextField f) { return Integer.parseInt(f.getText().trim()); }
+    private int parse(JTextField f) {
+    try {
+        return Integer.parseInt(f.getText().trim());
+    } catch (NumberFormatException e) {
+        throw new IllegalArgumentException("Vui lòng nhập số hợp lệ");
+    }
+}
 
     // ── Events ────────────────────────────────────────────────────────────────
     private void initEvents() {
@@ -353,7 +359,7 @@ public class ElgamalUI extends JFrame {
                 txtCipher.setText(sb3.toString());
                 originalPlainText  = txtPlain.getText();
                 originalCipherText = txtCipher.getText();
-            } catch (Exception ex) { err("Lỗi mã hóa: " + ex.getMessage()); }
+            } catch (Exception ex) { err("Lỗi mã hóa dữ liệu."); }
         });
 
         // Decrypt — uses txtCipherIn (top-right) first, falls back to txtCipher
@@ -376,7 +382,7 @@ if (bad || mod) {
         (bad && mod ? " và " : "") +
         (mod ? "bản mã đã bị chỉnh sửa" : ""));
 }
-            } catch (Exception ex) { err("Lỗi giải mã: " + ex.getMessage()); }
+            } catch (Exception ex) { err("Lỗi giải mã dữ liệu."); }
         });
 
         // "Chuyển →" copies cipher to cipherIn
@@ -444,7 +450,7 @@ if (bad || mod) {
             else if (name.endsWith(".pdf"))  writePdf(f, text);
             else { try(Writer w=new OutputStreamWriter(new FileOutputStream(f),StandardCharsets.UTF_8)){w.write(text);} }
             JOptionPane.showMessageDialog(this, "Đã lưu: " + f.getAbsolutePath());
-        } catch (Exception ex) { err("Lỗi lưu file: " + ex.getMessage()); }
+        } catch (Exception ex) { err("Không thể lưu file."); }
     }
 
     private String loadFile() {
@@ -460,8 +466,8 @@ if (bad || mod) {
                 while ((line = r.readLine()) != null) sb.append(line).append("\n");
                 return sb.toString();
             }
-        } catch (Exception ex) { err("Lỗi đọc file: " + ex.getMessage()); return null; }
-    }
+        }catch (Exception ex) { err("Không thể đọc file."); return null ; }
+}
 
     // ── Crypto helpers ────────────────────────────────────────────────────────
     private String decryptText(String cipherText, int p, int x) throws IOException {
