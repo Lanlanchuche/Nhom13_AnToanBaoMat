@@ -1,4 +1,3 @@
-
 import random
 import math
 
@@ -185,3 +184,38 @@ class ElGamalMath:
             m = (c2 * c1_x_inv) % p
             plaintext_chars.append(chr(m))
         return "".join(plaintext_chars)
+
+
+    @staticmethod
+    def encrypt_bytes(data: bytes, p: int, g: int, y: int) -> list:
+        """
+        Mã hóa một chuỗi bytes thô từ tệp tin thành danh sách các cặp số bản mã (c1, c2).
+        """
+        cipher_pairs = []
+        for b in data:
+            if b >= p:
+                raise ValueError(f"Giá trị byte ({b}) >= p ({p}). Hãy chọn số p lớn hơn 256!")
+
+            while True:
+                k = random.randint(2, p - 2)
+                if math.gcd(k, p - 1) == 1: break
+
+            c1 = ElGamalMath.power(g, k, p)
+            c2 = (b * ElGamalMath.power(y, k, p)) % p
+            cipher_pairs.append((c1, c2))
+        return cipher_pairs
+
+    @staticmethod
+    def decrypt_bytes(cipher_pairs: list, p: int, x: int) -> bytes:
+        """
+        Giải mã danh sách các cặp số bản mã thành chuỗi dữ liệu bytes thô ban đầu để ghi ra file.
+        """
+        plaintext_bytes = bytearray()
+        for c1, c2 in cipher_pairs:
+            c1_x = ElGamalMath.power(c1, x, p)
+            c1_x_inv = ElGamalMath.mod_reverse(c1_x, p)
+            if c1_x_inv is None:
+                raise ValueError("Không tìm thấy nghịch đảo mô-đun khi giải mã byte.")
+            b = (c2 * c1_x_inv) % p
+            plaintext_bytes.append(b)
+        return bytes(plaintext_bytes)

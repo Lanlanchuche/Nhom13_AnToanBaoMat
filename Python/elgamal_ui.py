@@ -1,232 +1,414 @@
 # elgamal_ui.py
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 from elgamal_math import ElGamalMath
 import random
+import os
+import threading
 
 
 class ElGamalUI:
     """
-    Lớp quản lý giao diện đồ họa (UI) phiên bản cải tiến thẩm mỹ và điều khiển luồng sự kiện.
-    Áp dụng màu sắc hiện đại, tăng khoảng cách padding và phân cấp nút bấm rõ ràng.
+    Lớp quản lý giao diện đồ họa (UI) hoàn chỉnh cho hệ mật ElGamal.
+    Tích hợp xử lý Đa luồng (Threading), giám sát an toàn toàn vẹn dữ liệu
+    và thông báo cảnh báo thông minh khi khóa hoặc bản mã bị chỉnh sửa.
     """
 
     def __init__(self, root: tk.Tk):
-        """
-        Khởi tạo đối tượng giao diện ứng dụng ElGamal với thiết kế mới.
-
-        Args:
-            root (tk.Tk): Cửa sổ gốc của ứng dụng Tkinter.
-        """
         self.root = root
-        self.root.title("HỆ THỐNG MÃ HÓA & GIẢI MÃ ELGAMAL")
-        self.root.geometry("820x720")
-        self.root.configure(bg="#F5F7FA")  # Màu nền tổng thể sáng sủa, hiện đại
+        self.root.title("HỆ THỐNG MÃ HÓA & GIẢI MÃ TỆP TIN ELGAMAL")
+        self.root.geometry("1000x880")
+        self.root.configure(bg="#F5F7FA")
 
-        # Các thuộc tính lưu trữ trạng thái dữ liệu
+        # Lưu trữ trạng thái bộ nhớ dữ liệu hệ thống
         self.p = self.g = self.x = self.y = None
-        self.current_cipher = []
+        self.selected_input_path = ""
+        self.selected_cipher_path = ""
 
-        # Thiết lập cấu trúc giao diện
+        # Bộ nhớ đệm lưu kết quả để chờ người dùng bấm nút lưu file
+        self.last_encrypted_pairs = None  # Lưu danh sách cặp (c1, c2)
+        self.last_decrypted_bytes = None  # Lưu mảng bytes dữ liệu gốc
+
+        # Khởi tạo giao diện và phong cách
         self._init_styles()
         self._build_widgets()
 
     def _init_styles(self):
-        """Thiết lập cấu hình giao diện nâng cao (Ttk Styles) với màu sắc chủ đề."""
         style = ttk.Style()
         style.theme_use('clam')
-
-        # Cấu hình phong cách cho các Group Box (LabelFrame)
         style.configure("TLabelframe", background="#F5F7FA", bordercolor="#E4E7EB")
         style.configure("TLabelframe.Label", background="#F5F7FA", font=("Helvetica", 11, "bold"), foreground="#1E3D59")
 
-        # Cấu hình phong cách cho các nút bấm
+        # Nút bấm chính (Xanh lá)
         style.configure("Primary.TButton", font=("Helvetica", 10, "bold"), foreground="white", background="#17B890",
                         borderwidth=0)
-        style.map("Primary.TButton", background=[('active', '#139675'), ('pressed', '#0F785D')])
+        style.map("Primary.TButton", background=[('active', '#139675')])
 
+        # Nút bấm phụ (Xanh dương đậm)
         style.configure("Accent.TButton", font=("Helvetica", 10, "bold"), foreground="white", background="#1E3D59",
                         borderwidth=0)
-        style.map("Accent.TButton", background=[('active', '#173046'), ('pressed', '#102232')])
+        style.map("Accent.TButton", background=[('active', '#173046')])
 
+        # Nút bấm hành động (Đỏ)
         style.configure("Danger.TButton", font=("Helvetica", 10, "bold"), foreground="white", background="#FF6B6B",
                         borderwidth=0)
-        style.map("Danger.TButton", background=[('active', '#E85A5A'), ('pressed', '#CF4F4F')])
+        style.map("Danger.TButton", background=[('active', '#E85A5A')])
 
     def _build_widgets(self):
-        """Xây dựng kết cấu, bố cục Layout và định vị các thành phần đồ họa theo lưới cân đối."""
-
         # --- TIÊU ĐỀ CHÍNH ---
-        title_container = tk.Frame(self.root, bg="#1E3D59", height=70)
+        title_container = tk.Frame(self.root, bg="#1E3D59", height=55)
         title_container.pack(fill="x", side="top")
         title_container.pack_propagate(False)
 
         title_lbl = tk.Label(
             title_container,
-            text="PHẦN MỀM MÔ PHỎNG HỆ MẬT KHÓA CÔNG KHAI ELGAMAL",
-            font=("Helvetica", 14, "bold"),
-            fg="white",
-            bg="#1E3D59"
+            text="HỆ THỐNG MÃ HÓA & GIẢI MÃ FILE ĐA LUỒNG AN TOÀN ELGAMAL",
+            font=("Helvetica", 13, "bold"), fg="white", bg="#1E3D59"
         )
         title_lbl.pack(expand=True)
 
-        # Toàn bộ nội dung nằm trong một khung đệm (Main Padding Frame)
         main_frame = tk.Frame(self.root, bg="#F5F7FA")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=15)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
-        # ----------------- KHUNG 1: KHỞI TẠO KHÓA -----------------
-        key_frame = ttk.LabelFrame(main_frame, text=" 1. THIẾT LẬP CẶP KHÓA HỆ THỐNG ")
-        key_frame.pack(fill="x", pady=8, ipady=5)
+        # ----------------- KHUNG 1: QUẢN LÝ KHÓA -----------------
+        key_frame = ttk.LabelFrame(main_frame, text=" 1. THIẾT LẬP VÀ QUẢN LÝ FILE KHÓA ")
+        key_frame.pack(fill="x", pady=5, ipady=3)
 
-        # Grid layout bên trong khung sinh khóa
         tk.Label(key_frame, text="Nhập số nguyên tố (p):", font=("Helvetica", 10), bg="#F5F7FA").grid(row=0, column=0,
-                                                                                                      padx=15, pady=10,
+                                                                                                      padx=15, pady=5,
                                                                                                       sticky="w")
         self.ent_p = ttk.Entry(key_frame, width=15, font=("Helvetica", 10))
         self.ent_p.insert(0, "65537")
-        self.ent_p.grid(row=0, column=1, padx=5, pady=10, sticky="w")
+        self.ent_p.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
-        btn_gen = ttk.Button(key_frame, text="Tự Động Sinh Khóa", style="Primary.TButton",
-                             command=self._on_generate_keys)
-        btn_gen.grid(row=0, column=2, padx=20, pady=10, ipadx=10)
+        ttk.Button(key_frame, text="Sinh Khóa Tự Động", style="Primary.TButton", command=self._on_generate_keys).grid(
+            row=0, column=2, padx=10, pady=5)
+        ttk.Button(key_frame, text="Lưu Cặp Khóa Ra File", style="Accent.TButton",
+                   command=self._on_save_keys_to_file).grid(row=0, column=3, padx=5, pady=5)
+        ttk.Button(key_frame, text="Tải Khóa Từ File", style="Accent.TButton",
+                   command=self._on_load_keys_from_file).grid(row=0, column=4, padx=5, pady=5)
 
-        # Khu vực hiển thị thông số sau khi sinh khóa
-        info_frame = tk.Frame(key_frame, bg="#E4E7EB", height=1, bd=0)
-        info_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=15, pady=5)
-        tk.Label(key_frame, text="Toán tử gốc (g):", font=("Helvetica", 10), fg="#4A5568", bg="#F5F7FA").grid(row=2,
-                                                                                                              column=0,
-                                                                                                              padx=15,
-                                                                                                              pady=5,
-                                                                                                              sticky="w")
-        self.lbl_g = tk.Label(key_frame, text="Chưa khởi tạo", font=("Helvetica", 10, "bold"), fg="#2B6CB0",
+        self.lbl_g = tk.Label(key_frame, text="Toán tử gốc (g): Chưa khởi tạo", font=("Helvetica", 10), fg="#4A5568",
                               bg="#F5F7FA")
-        self.lbl_g.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-
-        tk.Label(key_frame, text="Khóa Bí Mật (x):", font=("Helvetica", 10), fg="#4A5568", bg="#F5F7FA").grid(row=2,
-                                                                                                              column=2,
-                                                                                                              padx=15,
-                                                                                                              pady=5,
-                                                                                                              sticky="w")
-        self.lbl_x = tk.Label(key_frame, text="Chưa khởi tạo", font=("Helvetica", 10, "bold"), fg="#C53030",
+        self.lbl_g.grid(row=1, column=0, columnspan=2, padx=15, pady=2, sticky="w")
+        self.lbl_x = tk.Label(key_frame, text="Khóa bí mật (x): Chưa khởi tạo", font=("Helvetica", 10), fg="#C53030",
                               bg="#F5F7FA")
-        self.lbl_x.grid(row=2, column=3, padx=5, pady=5, sticky="w")
+        self.lbl_x.grid(row=1, column=2, columnspan=3, padx=10, pady=2, sticky="w")
+        self.lbl_y = tk.Label(key_frame, text="Bộ khóa công khai công bố (p, g, y): Chưa khởi tạo",
+                              font=("Helvetica", 9, "bold"), fg="#2F855A", bg="#F5F7FA", wraplength=920, justify="left")
+        self.lbl_y.grid(row=2, column=0, columnspan=5, padx=15, pady=4, sticky="w")
 
-        tk.Label(key_frame, text="Khóa Công Khai (y):", font=("Helvetica", 10), fg="#4A5568", bg="#F5F7FA").grid(row=3,
-                                                                                                                 column=0,
-                                                                                                                 padx=15,
-                                                                                                                 pady=5,
-                                                                                                                 sticky="w")
-        self.lbl_y = tk.Label(key_frame, text="Chưa khởi tạo", font=("Helvetica", 9, "bold"), fg="#2F855A",
-                              bg="#F5F7FA", wraplength=500, justify="left")
-        self.lbl_y.grid(row=3, column=1, padx=5, pady=5, columnspan=3, sticky="w")
+        # Khung chia đôi màn hình cho phân hệ Mã hóa (Trái) và Giải mã (Phải)
+        body_frame = tk.Frame(main_frame, bg="#F5F7FA")
+        body_frame.pack(fill="both", expand=True, pady=5)
+        body_frame.columnconfigure(0, weight=1, uniform="group1")
+        body_frame.columnconfigure(1, weight=1, uniform="group1")
 
-        # ----------------- KHUNG 2: QUÁ TRÌNH MÃ HÓA -----------------
-        enc_frame = ttk.LabelFrame(main_frame, text=" 2. PHÂN HỆ MÃ HÓA VĂN BẢN (SENDER) ")
-        enc_frame.pack(fill="x", pady=8, ipady=5)
+        # ----------------- KHUNG 2: PHÂN HỆ MÃ HÓA FILE (BÊN TRÁI) -----------------
+        enc_frame = ttk.LabelFrame(body_frame, text=" 2. PHÂN HỆ MÃ HÓA TỆP TIN (SENDER) ")
+        enc_frame.grid(row=0, column=0, padx=(0, 10), sticky="nsew")
 
-        tk.Label(enc_frame, text="Văn bản rõ (Plaintext):", font=("Helvetica", 10), bg="#F5F7FA").grid(row=0, column=0,
-                                                                                                       padx=15, pady=8,
-                                                                                                       sticky="nw")
+        file_select_enc = tk.Frame(enc_frame, bg="#F5F7FA")
+        file_select_enc.pack(fill="x", padx=10, pady=5)
+        ttk.Button(file_select_enc, text="Chọn File Source", style="Accent.TButton",
+                   command=self._on_browse_input_file).pack(side="left")
+        self.lbl_input_path = tk.Label(file_select_enc, text="Chưa chọn file...", font=("Helvetica", 9, "italic"),
+                                       fg="gray", bg="#F5F7FA", anchor="w")
+        self.lbl_input_path.pack(side="left", padx=10, fill="x", expand=True)
 
-        self.txt_plain = tk.Text(enc_frame, height=3, width=54, font=("Courier New", 10), bd=1, relief="solid")
-        self.txt_plain.insert("1.0", "Hello ElGamal 2026!")
-        self.txt_plain.grid(row=0, column=1, padx=5, pady=8, sticky="w")
+        action_bar_enc = tk.Frame(enc_frame, bg="#F5F7FA")
+        action_bar_enc.pack(fill="x", padx=10, pady=5)
+        ttk.Button(action_bar_enc, text="Thực Hiện Mã Hóa", style="Primary.TButton",
+                   command=self._on_encrypt_file).pack(side="left")
+        self.btn_save_cipher = ttk.Button(action_bar_enc, text="Lưu File Mật...", style="Accent.TButton",
+                                          command=self._on_save_cipher_to_file, state="disabled")
+        self.btn_save_cipher.pack(side="right")
 
-        btn_enc = ttk.Button(enc_frame, text="Thực Hiện Mã Hóa", style="Accent.TButton", command=self._on_encrypt)
-        btn_enc.grid(row=1, column=1, pady=5, sticky="e", ipadx=10)
+        tk.Label(enc_frame, text="Xem trước bản mã thu được (Format: c1,c2):", font=("Helvetica", 9, "bold"),
+                 bg="#F5F7FA", fg="#4A5568").pack(anchor="w", padx=10, pady=(5, 0))
 
-        tk.Label(enc_frame, text="Bản mã nhận được (C):\nFormat: (c1, c2)", font=("Helvetica", 10), bg="#F5F7FA").grid(
-            row=2, column=0, padx=15, pady=8, sticky="nw")
+        txt_container_enc = tk.Frame(enc_frame)
+        txt_container_enc.pack(fill="both", expand=True, padx=10, pady=5)
+        scrollbar_enc = ttk.Scrollbar(txt_container_enc)
+        scrollbar_enc.pack(side="right", fill="y")
+        self.txt_display_cipher = tk.Text(txt_container_enc, font=("Courier New", 9), bg="#EDF2F7", fg="#2D3748", bd=1,
+                                          relief="solid", yscrollcommand=scrollbar_enc.set, wrap="word")
+        self.txt_display_cipher.pack(fill="both", expand=True, side="left")
+        scrollbar_enc.config(command=self.txt_display_cipher.yview)
 
-        self.txt_cipher = tk.Text(enc_frame, height=3, width=54, font=("Courier New", 10), bg="#EDF2F7", fg="#2D3748",
-                                  bd=1, relief="solid", state="disabled")
-        self.txt_cipher.grid(row=2, column=1, padx=5, pady=8, sticky="w")
+        # ----------------- KHUNG 3: PHÂN HỆ GIẢI MÃ FILE (BÊN PHẢI) -----------------
+        dec_frame = ttk.LabelFrame(body_frame, text=" 3. PHÂN HỆ GIẢI MÃ TỆP TIN (RECEIVER) ")
+        dec_frame.grid(row=0, column=1, padx=(10, 0), sticky="nsew")
 
-        # ----------------- KHUNG 3: QUÁ TRÌNH GIẢI MÃ -----------------
-        dec_frame = ttk.LabelFrame(main_frame, text=" 3. PHÂN HỆ GIẢI MÃ BẢN MÃ (RECEIVER) ")
-        dec_frame.pack(fill="x", pady=8, ipady=5)
+        file_select_dec = tk.Frame(dec_frame, bg="#F5F7FA")
+        file_select_dec.pack(fill="x", padx=10, pady=5)
+        ttk.Button(file_select_dec, text="Chọn File Mật", style="Accent.TButton",
+                   command=self._on_browse_cipher_file).pack(side="left")
+        self.lbl_cipher_path = tk.Label(file_select_dec, text="Chưa chọn file mật...", font=("Helvetica", 9, "italic"),
+                                        fg="gray", bg="#F5F7FA", anchor="w")
+        self.lbl_cipher_path.pack(side="left", padx=10, fill="x", expand=True)
 
-        # Căn giữa nút bấm Giải mã
-        btn_container = tk.Frame(dec_frame, bg="#F5F7FA")
-        btn_container.pack(fill="x", pady=5)
-        btn_dec = ttk.Button(btn_container, text="Thực Hiện Giải Mã", style="Danger.TButton", command=self._on_decrypt)
-        btn_dec.pack(ipadx=15, ipady=2)
+        action_bar_dec = tk.Frame(dec_frame, bg="#F5F7FA")
+        action_bar_dec.pack(fill="x", padx=10, pady=5)
+        ttk.Button(action_bar_dec, text="Thực Hiện Giải Mã", style="Danger.TButton",
+                   command=self._on_decrypt_file).pack(side="left")
+        self.btn_save_plain = ttk.Button(action_bar_dec, text="Lưu Văn Bản Gốc...", style="Primary.TButton",
+                                         command=self._on_save_plain_to_file, state="disabled")
+        self.btn_save_plain.pack(side="right")
 
-        output_container = tk.Frame(dec_frame, bg="#F5F7FA")
-        output_container.pack(fill="x", padx=15, pady=5)
+        tk.Label(dec_frame, text="Xem trước nội dung văn bản giải mã:", font=("Helvetica", 9, "bold"), bg="#F5F7FA",
+                 fg="#4A5568").pack(anchor="w", padx=10, pady=(5, 0))
 
-        tk.Label(output_container, text="Văn bản gốc khôi phục (Decrypted Text):", font=("Helvetica", 10),
-                 bg="#F5F7FA").pack(anchor="w", pady=2)
-        self.txt_decrypted = tk.Text(output_container, height=3, width=73, font=("Courier New", 10, "bold"),
-                                     bg="#EDF2F7", fg="#1A202C", bd=1, relief="solid", state="disabled")
-        self.txt_decrypted.pack(fill="x", pady=5)
+        txt_container_dec = tk.Frame(dec_frame)
+        txt_container_dec.pack(fill="both", expand=True, padx=10, pady=5)
+        scrollbar_dec = ttk.Scrollbar(txt_container_dec)
+        scrollbar_dec.pack(side="right", fill="y")
+        self.txt_display_plain = tk.Text(txt_container_dec, font=("Courier New", 10), bg="white", fg="#1A202C", bd=1,
+                                         relief="solid", yscrollcommand=scrollbar_dec.set)
+        self.txt_display_plain.pack(fill="both", expand=True, side="left")
+        scrollbar_dec.config(command=self.txt_display_plain.yview)
 
-    # --- Các hàm xử lý sự kiện (Event Handlers) ---
+        # Thanh trạng thái dưới đáy ứng dụng
+        self.lbl_status = tk.Label(main_frame, text="Trạng thái: Hệ thống sẵn sàng.", font=("Helvetica", 9),
+                                   bg="#F5F7FA", fg="#718096", anchor="w")
+        self.lbl_status.pack(fill="x", side="bottom", pady=2)
+
+    def _log(self, message: str):
+        self.lbl_status.config(text=f"Trạng thái: {message}")
+
+    # --- SỰ KIỆN QUẢN LÝ KHÓA ---
     def _on_generate_keys(self):
-        """Đọc số p, kiểm tra tính hợp lệ toán học, gọi hàm sinh khóa và hiển thị cặp khóa."""
         try:
             p = int(self.ent_p.get())
-            if not ElGamalMath.is_prime(p):
-                messagebox.showerror("Lỗi Số Học", "Số hệ thống (p) bạn nhập không phải là số nguyên tố!")
+            if not ElGamalMath.is_prime(p) or p <= 256:
+                messagebox.showerror("Lỗi", "Số p phải là số nguyên tố và lớn hơn 256!")
                 return
-            if p < 256:
-                messagebox.showwarning("Cảnh báo",
-                                       "Hệ thống khuyến nghị chọn số p > 256 để chứa vừa bảng ký tự Unicode!")
-                return
-
             g = ElGamalMath.find_primitive_root(p)
             x = random.randint(2, p - 2)
             y = ElGamalMath.power(g, x, p)
 
-            # Cập nhật bộ nhớ chương trình
             self.p, self.g, self.x, self.y = p, g, x, y
-
-            # Đẩy dữ liệu hiển thị lên View
-            self.lbl_g.config(text=str(g))
-            self.lbl_x.config(text=str(x))
-            self.lbl_y.config(text=f"Bộ khóa: (p={p}, g={g}, y={y})")
-            messagebox.showinfo("Thành công", "Hệ thống đã khởi tạo xong cặp khóa an toàn!")
+            self.lbl_g.config(text=f"Toán tử gốc (g): {g}")
+            self.lbl_x.config(text=f"Khóa bí mật (x): {x}")
+            self.lbl_y.config(text=f"Bộ khóa công khai công bố (p, g, y): ({p}, {g}, {y})")
+            self._log("Sinh cặp khóa hệ thống thành công.")
         except ValueError:
-            messagebox.showerror("Lỗi định dạng", "Vui lòng nhập định dạng số nguyên hợp lệ!")
+            messagebox.showerror("Lỗi", "Vui lòng nhập định dạng số nguyên thích hợp.")
 
-    def _on_encrypt(self):
-        """Mã hóa văn bản rõ từ giao diện và hiển thị chuỗi cặp số bản mã."""
+    def _on_save_keys_to_file(self):
         if self.p is None:
-            messagebox.showerror("Lỗi An Toàn", "Vui lòng khởi tạo cặp khóa hệ thống trước khi mã hóa!")
+            messagebox.showwarning("Thông báo", "Chưa có thông tin khóa để xuất!")
+            return
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text File", "*.txt")],
+                                                 title="Lưu File Khóa")
+        if file_path:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(f"p={self.p}\ng={self.g}\nx={self.x}\ny={self.y}\n")
+            self._log(f"Đã lưu tệp thông số khóa tại {os.path.basename(file_path)}")
+
+    def _on_load_keys_from_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Text File", "*.txt")], title="Mở File Khóa")
+        if file_path:
+            try:
+                keys = {}
+                with open(file_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if "=" in line:
+                            k, v = line.strip().split("=")
+                            keys[k.strip()] = int(v.strip())
+                self.p, self.g, self.x, self.y = keys["p"], keys["g"], keys["x"], keys["y"]
+                self.ent_p.delete(0, tk.END);
+                self.ent_p.insert(0, str(self.p))
+                self.lbl_g.config(text=f"Toán tử gốc (g): {self.g}")
+                self.lbl_x.config(text=f"Khóa bí mật (x): {self.x}")
+                self.lbl_y.config(text=f"Bộ khóa công khai công bố (p, g, y): ({self.p}, {self.g}, {self.y})")
+                self._log("Tải dữ liệu file khóa hoàn tất.")
+            except Exception as e:
+                messagebox.showerror("Lỗi", "Cấu trúc file khóa không hợp lệ.")
+
+    # --- SỰ KIỆN PHÂN HỆ MÃ HÓA (ĐA LUỒNG) ---
+    def _on_browse_input_file(self):
+        path = filedialog.askopenfilename(title="Chọn file cần mã hóa")
+        if path:
+            self.selected_input_path = path
+            self.lbl_input_path.config(text=os.path.basename(path), fg="black")
+
+    def _on_encrypt_file(self):
+        if not self.selected_input_path or self.p is None:
+            messagebox.showwarning("Lỗi", "Vui lòng chọn file nguồn và thiết lập cấu hình khóa.")
             return
 
-        plaintext = self.txt_plain.get("1.0", tk.END).strip()
-        if not plaintext:
-            messagebox.showwarning("Thông báo", "Vui lòng nhập nội dung văn bản rõ cần truyền tải.")
+        def worker():
+            try:
+                self._log("Đang đọc luồng byte từ file nguồn...")
+                with open(self.selected_input_path, "rb") as f:
+                    file_data = f.read()
+
+                self._log(f"Đang tính toán mã hóa ElGamal ({len(file_data)} bytes)... Vui lòng đợi...")
+                self.last_encrypted_pairs = ElGamalMath.encrypt_bytes(file_data, self.p, self.g, self.y)
+
+                self._log("Đang biên dịch chuỗi xem trước bản mã...")
+                # Giới hạn 1000 khối đầu hiển thị lên màn hình để tránh làm đơ Widget Text
+                preview_pairs = self.last_encrypted_pairs[:1000]
+                cipher_preview = " ".join([f"({c1},{c2})" for c1, c2 in preview_pairs])
+                if len(self.last_encrypted_pairs) > 1000:
+                    cipher_preview += " ... [Bản mã dài, chỉ hiển thị trước 1000 khối để tối ưu UI]"
+
+                self.root.after(0, lambda: update_ui_success(cipher_preview))
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Lỗi Mã hóa", str(e)))
+
+        def update_ui_success(preview_text):
+            self.txt_display_cipher.delete("1.0", tk.END)
+            self.txt_display_cipher.insert("1.0", preview_text)
+            self.btn_save_cipher.config(state="normal")
+            self._log("Mã hóa hoàn tất! Hệ thống đã nạp dữ liệu chờ xuất file.")
+            messagebox.showinfo("Thành công", "Đã mã hóa thành công! Bạn có thể xem trước bản mã hoặc chọn lưu file.")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_save_cipher_to_file(self):
+        if not self.last_encrypted_pairs:
+            return
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".enc",
+            filetypes=[
+                ("Tệp mật mã chuẩn (*.enc)", "*.enc"),
+                ("Tệp dữ liệu (*.dat)", "*.dat"),
+                ("Tệp nhị phân (*.bin)", "*.bin"),
+                ("Tất cả định dạng (*.*)", "*.*")
+            ],
+            title="Lưu file mật mã mã hóa"
+        )
+        if save_path:
+            try:
+                with open(save_path, "w", encoding="utf-8") as f:
+                    for c1, c2 in self.last_encrypted_pairs:
+                        f.write(f"{c1},{c2}\n")
+                self._log(f"Đã xuất và lưu file mật tại: {os.path.basename(save_path)}")
+                messagebox.showinfo("Thành công", "Lưu file mật mã hoàn tất!")
+            except Exception as e:
+                messagebox.showerror("Lỗi lưu file", str(e))
+
+    # --- SỰ KIỆN PHÂN HỆ GIẢI MÃ & BẪY LỖI AN NINH (ĐA LUỒNG) ---
+    def _on_browse_cipher_file(self):
+        path = filedialog.askopenfilename(
+            title="Chọn file mật mã",
+            filetypes=[
+                ("Tệp mật mã (*.enc;*.dat;*.bin)", "*.enc;*.dat;*.bin"),
+                ("Tất cả các tệp (*.*)", "*.*")
+            ]
+        )
+        if path:
+            self.selected_cipher_path = path
+            self.lbl_cipher_path.config(text=os.path.basename(path), fg="black")
+
+    def _on_decrypt_file(self):
+        if not self.selected_cipher_path or self.p is None:
+            messagebox.showwarning("Lỗi", "Vui lòng chọn file mật mã đầu vào và nạp thông số khóa bí mật.")
             return
 
-        try:
-            self.current_cipher = ElGamalMath.encrypt(plaintext, self.p, self.g, self.y)
+        def worker():
+            try:
+                self._log("Đang đọc cấu trúc dữ liệu tệp mật mã...")
+                cipher_pairs = []
 
-            # Cập nhật ô văn bản mã hóa (Mở khóa -> Ghi dữ liệu -> Khóa lại)
-            self.txt_cipher.config(state="normal")
-            self.txt_cipher.delete("1.0", tk.END)
-            cipher_str = " ".join([f"({c1},{c2})" for c1, c2 in self.current_cipher])
-            self.txt_cipher.insert("1.0", cipher_str)
-            self.txt_cipher.config(state="disabled")
+                # 1. KIỂM TRA ĐỊNH DẠNG/CẤU TRÚC FILE BẢN MÃ
+                with open(self.selected_cipher_path, "r", encoding="utf-8") as f:
+                    for line_num, line in enumerate(f, 1):
+                        line = line.strip()
+                        if line:
+                            try:
+                                c1, c2 = map(int, line.split(","))
+                                cipher_pairs.append((c1, c2))
+                            except ValueError:
+                                self.root.after(0, lambda ln=line_num: messagebox.showerror(
+                                    "CẢNH BÁO AN NINH",
+                                    f"Cấu trúc file bản mã bị sai lệch hoặc hỏng nghiêm trọng ở dòng {ln}!\n\n"
+                                    "Nguyên nhân: File bản mã mật đã bị can thiệp, chỉnh sửa trái phép."
+                                ))
+                                self._log("Thất bại: File mật mã bị thay đổi cấu trúc định dạng.")
+                                return
 
-        except Exception as e:
-            messagebox.showerror("Lỗi Mã hóa", str(e))
+                self._log(f"Đang thực thi giải mã nghịch đảo mô-đun {len(cipher_pairs)} khối...")
 
-    def _on_decrypt(self):
-        """Giải mã mảng bản mã lưu trong bộ nhớ và in kết quả văn bản rõ."""
-        if self.p is None or not self.current_cipher:
-            messagebox.showerror("Lỗi Dữ Liệu", "Không tìm thấy thông số khóa hoặc gói bản mã phù hợp để giải mã!")
+                # 2. KIỂM TRA LỖI TOÁN HỌC KHI GIẢI MÃ (SAI KHÓA HOẶC SỬA SỐ C1)
+                try:
+                    self.last_decrypted_bytes = ElGamalMath.decrypt_bytes(cipher_pairs, self.p, self.x)
+                except ValueError:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "CẢNH BÁO: SAI KHÓA / SỬA BẢN MÃ",
+                        "Không thể tìm thấy nghịch đảo mô-đun trong quá trình tính toán nền!\n\n"
+                        "Hệ thống xác định:\n"
+                        "- Khóa bí mật (x) bạn nhập đã bị thay đổi không chính xác, HOẶC\n"
+                        "- Thành phần dữ liệu c1 trong file bản mã đã bị chỉnh sửa (Tấn công toàn vẹn)."
+                    ))
+                    self._log("Thất bại: Lỗi nghịch đảo mô-đun (Sai khóa hoặc Sửa bản mã).")
+                    return
+
+                # 3. KIỂM TRA TÍNH HỢP LỆ TRÊN TỪNG BYTE (PHÁT HIỆN SỬA ĐỒI CẢ HAI)
+                invalid_bytes = [b for b in self.last_decrypted_bytes if b > 255]
+                if invalid_bytes:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "HỆ THỐNG PHÁT HIỆN LỖI",
+                        "Dữ liệu giải mã vượt quá giới hạn Byte tiêu chuẩn (0-255)!\n\n"
+                        "Thông báo: CẢ BẢN MÃ VÀ KHÓA HỆ THỐNG ĐỀU ĐÃ BỊ SỬA ĐỔI / KHÔNG TRÙNG KHỚP NHAU."
+                    ))
+                    self._log("Thất bại: Dữ liệu không hợp lệ do sai lệch đồng thời cả khóa và bản mã.")
+                    return
+
+                # 4. KIỂM TRA XÁC SUẤT KÝ TỰ RÁC
+                try:
+                    text_content = self.last_decrypted_bytes.decode("utf-8")
+
+                    # Tính toán tỷ lệ ký tự điều khiển lỗi không đọc được để phát hiện can thiệp nhỏ
+                    control_chars = sum(1 for c in text_content if ord(c) < 32 and c not in "\n\r\t")
+                    if len(text_content) > 0 and (control_chars / len(text_content)) > 0.3:
+                        self.root.after(0, lambda: messagebox.showwarning(
+                            "CẢNH BÁO: RÁC DỮ LIỆU",
+                            "Văn bản giải mã thành công về mặt toán học nhưng chứa cấu trúc ký tự lạ (Ký tự rác).\n\n"
+                            "Điều này xảy ra do Khóa bí mật bị thay đổi nhỏ hoặc một vài ký tự trong Bản mã bị chỉnh sửa!"
+                        ))
+                except UnicodeDecodeError:
+                    text_content = "[Dữ liệu nhị phân / Định dạng file đặc biệt hoặc Bản mã đã bị chỉnh sửa]\n" \
+                                   "Mã xem trước Hex:\n" + self.last_decrypted_bytes.hex()[:500] + "..."
+
+                    self.root.after(0, lambda: messagebox.showwarning(
+                        "THÔNG BÁO KIỂM TRA",
+                        "Hệ thống không thể dịch luồng dữ liệu giải mã sang văn bản ký tự (Unicode Decode Error).\n\n"
+                        "Nếu tệp tin gốc của bạn là file văn bản (.txt), chắc chắn Khóa bí mật hoặc Bản mã đã bị sửa đổi trái phép!"
+                    ))
+
+                self.root.after(0, lambda: update_ui_success(text_content))
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Lỗi Hệ Thống", f"Lỗi không xác định: {str(e)}"))
+
+        def update_ui_success(content):
+            self.txt_display_plain.delete("1.0", tk.END)
+            self.txt_display_plain.insert("1.0", content)
+            self.btn_save_plain.config(state="normal")
+            self._log("Giải mã hoàn tất! Hãy kiểm tra tính toàn vẹn của dữ liệu hiển thị.")
+            messagebox.showinfo("Thành công", "Giải mã hoàn tất! Bạn có thể đọc nội dung và chọn lưu file văn bản.")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_save_plain_to_file(self):
+        if self.last_decrypted_bytes is None:
             return
-
-        try:
-            decrypted_text = ElGamalMath.decrypt(self.current_cipher, self.p, self.x)
-
-            # Cập nhật ô văn bản giải mã (Mở khóa -> Ghi dữ liệu -> Khóa lại)
-            self.txt_decrypted.config(state="normal")
-            self.txt_decrypted.delete("1.0", tk.END)
-            self.txt_decrypted.insert("1.0", decrypted_text)
-            self.txt_decrypted.config(state="disabled")
-
-        except Exception as e:
-            messagebox.showerror("Lỗi Giải mã", str(e))
+        save_path = filedialog.asksaveasfilename(
+            title="Lưu văn bản khôi phục giải mã",
+            defaultextension=".txt",
+            filetypes=[
+                ("Văn bản thuần túy (*.txt)", "*.txt"),
+                ("Tài liệu Microsoft Word (*.docx)", "*.docx"),
+                ("Tất cả các tệp (*.*)", "*.*")
+            ]
+        )
+        if save_path:
+            try:
+                with open(save_path, "wb") as f:
+                    f.write(self.last_decrypted_bytes)
+                self._log(f"Đã lưu file giải mã thành công tại: {os.path.basename(save_path)}")
+                messagebox.showinfo("Thành công", f"Đã lưu văn bản vào tệp: {os.path.basename(save_path)}")
+            except Exception as e:
+                messagebox.showerror("Lỗi lưu file", str(e))
