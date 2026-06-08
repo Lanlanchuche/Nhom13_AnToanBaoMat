@@ -109,7 +109,7 @@ public class ElGamalApp extends JFrame {
         autoCard.setLayout(new BorderLayout(0, 12));
         JLabel autoDesc = dimLabel("Tự động sinh số nguyên tố p, phần tử sinh g,<br>khóa bí mật x và khóa công khai y ngẫu nhiên.");
         autoCard.add(autoDesc, BorderLayout.CENTER);
-        JButton btnAuto = accentButton("⚡  Sinh Khóa Ngẫu Nhiên");
+        JButton btnAuto = accentButton("  Sinh Khóa Ngẫu Nhiên");
         autoCard.add(btnAuto, BorderLayout.SOUTH);
         leftColumn.add(autoCard);
 
@@ -124,7 +124,7 @@ public class ElGamalApp extends JFrame {
         addRow(manCard, gc, "g :", tfG, 1);
         addRow(manCard, gc, "x :", tfX, 2);
         addRow(manCard, gc, "y :", tfY, 3);
-        JButton btnManual = accentButton("✔  Xác Nhận Khóa");
+        JButton btnManual = accentButton("  Xác Nhận Khóa");
         gc.gridx = 0; gc.gridy = 4; gc.gridwidth = 2; gc.insets = new Insets(14, 0, 0, 0);
         manCard.add(btnManual, gc);
         leftColumn.add(manCard);
@@ -138,15 +138,15 @@ public class ElGamalApp extends JFrame {
         JLabel lblG = keyLabel("g", "—");
         JLabel lblX = keyLabel("x  (bí mật)", "—");
         JLabel lblY = keyLabel("y  (công khai)", "—");
-        JLabel lblStatus = new JLabel("  ❌ Chưa có khóa hợp lệ");
+        JLabel lblStatus = new JLabel("   Chưa có khóa hợp lệ");
         lblStatus.setForeground(DANGER);
         lblStatus.setFont(new Font("Segoe UI", Font.ITALIC | Font.BOLD, 12));
         dispCard.add(lblP); dispCard.add(lblG); dispCard.add(lblX); dispCard.add(lblY); dispCard.add(lblStatus);
 
         JPanel saveCard = card("Lưu Khóa Ra File");
         saveCard.setLayout(new GridLayout(2, 1, 0, 8));
-        JButton btnSavePub  = secondaryButton("💾  Lưu Khóa Công Khai  (p, g, y)");
-        JButton btnSavePriv = secondaryButton("🔐  Lưu Khóa Bí Mật  (p, g, x, y)");
+        JButton btnSavePub  = secondaryButton("  Lưu Khóa Công Khai  (p, g, y)");
+        JButton btnSavePriv = secondaryButton("  Lưu Khóa Bí Mật  (p, g, x, y)");
         saveCard.add(btnSavePub); saveCard.add(btnSavePriv);
         rightColumn.add(dispCard, BorderLayout.CENTER);
         rightColumn.add(saveCard, BorderLayout.SOUTH);
@@ -163,13 +163,13 @@ public class ElGamalApp extends JFrame {
             if (sharedP == 0) {
                 setText(lblP, "p", "—"); setText(lblG, "g", "—");
                 setText(lblX, "x (bí mật)", "—"); setText(lblY, "y (công khai)", "—");
-                lblStatus.setText("  ❌ Chưa có khóa hợp lệ"); lblStatus.setForeground(DANGER);
+                lblStatus.setText("   Chưa có khóa hợp lệ"); lblStatus.setForeground(DANGER);
             } else {
                 setText(lblP, "p", String.valueOf(sharedP));
                 setText(lblG, "g", String.valueOf(sharedG));
                 setText(lblX, "x (bí mật)", String.valueOf(sharedX));
                 setText(lblY, "y (công khai)", String.valueOf(sharedY));
-                lblStatus.setText("  ✅ Khóa hoạt động hợp lệ"); lblStatus.setForeground(SUCCESS);
+                lblStatus.setText("   Khóa hoạt động hợp lệ"); lblStatus.setForeground(SUCCESS);
             }
         };
 
@@ -192,7 +192,7 @@ public class ElGamalApp extends JFrame {
                 if (y != (int) ElGamal.modPow(g, x, p)) throw new Exception("y không khớp với g^x mod p!");
                 sharedP = p; sharedG = g; sharedX = x; sharedY = y;
                 refreshDisplay.run();
-                statusBar.setText("Khóa thủ công cấu hình thành công ✅"); statusBar.setForeground(SUCCESS);
+                statusBar.setText("Khóa thủ công cấu hình thành công "); statusBar.setForeground(SUCCESS);
             } catch (Exception ex) {
                 statusBar.setText("Lỗi: " + ex.getMessage()); statusBar.setForeground(DANGER);
                 JOptionPane.showMessageDialog(root, ex.getMessage(), "Lỗi cấu hình khóa", JOptionPane.ERROR_MESSAGE);
@@ -238,14 +238,18 @@ public class ElGamalApp extends JFrame {
         JTextField encK = inputField("Số k (để trống nếu muốn tự động sinh ngẫu nhiên)");
 
         kgc.weightx = 0.2; kgc.gridy = 0;
-        kgc.gridx = 0; keyInfo.add(new JLabel("  p:"), kgc); kgc.gridx = 1; keyInfo.add(encP, kgc);
-        kgc.gridx = 2; keyInfo.add(new JLabel("  g:"), kgc); kgc.gridx = 3; keyInfo.add(encG, kgc);
-        kgc.gridx = 4; keyInfo.add(new JLabel("  y:"), kgc); kgc.gridx = 5; keyInfo.add(encY, kgc);
-        kgc.gridx = 6; keyInfo.add(new JLabel("  k:"), kgc); kgc.gridx = 7; keyInfo.add(encK, kgc);
+//        kgc.gridx = 0; keyInfo.add(new JLabel("  p:"), kgc); kgc.gridx = 1; keyInfo.add(encP, kgc);
+//        kgc.gridx = 2; keyInfo.add(new JLabel("  g:"), kgc); kgc.gridx = 3; keyInfo.add(encG, kgc);
+//        kgc.gridx = 4; keyInfo.add(new JLabel("  y:"), kgc); kgc.gridx = 5; keyInfo.add(encY, kgc);
+//        kgc.gridx = 6; keyInfo.add(new JLabel("  k:"), kgc); kgc.gridx = 7; keyInfo.add(encK, kgc);
+        kgc.gridx = 0; keyInfo.add(whiteLabel("  p:"), kgc);  kgc.gridx = 1; keyInfo.add(encP, kgc);
+        kgc.gridx = 2; keyInfo.add(whiteLabel("  g:"), kgc);  kgc.gridx = 3; keyInfo.add(encG, kgc);
+        kgc.gridx = 4; keyInfo.add(whiteLabel("  y:"), kgc);  kgc.gridx = 5; keyInfo.add(encY, kgc);
+        kgc.gridx = 6; keyInfo.add(whiteLabel("  k:"), kgc);  kgc.gridx = 7; keyInfo.add(encK, kgc);
 
         JPanel keyActionPanel = darkPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        JButton btnLoadEncKey = secondaryButton("📂  Nạp Khóa Từ File");
-        JButton btnUseSharedKey = secondaryButton("📌  Dùng Khóa Vừa Sinh Ở Tab 1");
+        JButton btnLoadEncKey = secondaryButton("  Nạp Khóa Từ File");
+        JButton btnUseSharedKey = secondaryButton("  Dùng Khóa Vừa Sinh Ở Tab 1");
         keyActionPanel.add(btnLoadEncKey); keyActionPanel.add(btnUseSharedKey);
         kgc.gridx = 0; kgc.gridy = 1; kgc.gridwidth = 8; kgc.insets = new Insets(10, 0, 0, 0);
         keyInfo.add(keyActionPanel, kgc);
@@ -258,8 +262,8 @@ public class ElGamalApp extends JFrame {
         inCard.add(scrollWrap(taPlain), BorderLayout.CENTER);
 
         JPanel inBtns = darkPanel(new GridLayout(1, 2, 8, 0));
-        JButton btnLoadText = secondaryButton("📂  Mở Tệp Văn Bản");
-        JButton btnSaveText = secondaryButton("💾  Lưu Văn Bản Gốc");
+        JButton btnLoadText = secondaryButton("  Mở Tệp Văn Bản");
+        JButton btnSaveText = secondaryButton("  Lưu Văn Bản Gốc");
         inBtns.add(btnLoadText); inBtns.add(btnSaveText);
         inCard.add(inBtns, BorderLayout.SOUTH);
 
@@ -267,14 +271,14 @@ public class ElGamalApp extends JFrame {
         outCard.setLayout(new BorderLayout(0, 8));
         JTextArea taCipher = textArea(); taCipher.setEditable(false);
         outCard.add(scrollWrap(taCipher), BorderLayout.CENTER);
-        JButton btnSaveCipher = secondaryButton("💾  Lưu Tệp Bản Mã (.txt)");
+        JButton btnSaveCipher = secondaryButton("  Lưu Tệp Bản Mã (.txt)");
         outCard.add(btnSaveCipher, BorderLayout.SOUTH);
 
         center.add(inCard); center.add(outCard);
         root.add(center, BorderLayout.CENTER);
 
         JPanel bottom = darkPanel(new BorderLayout(12, 0));
-        JButton btnEncrypt = accentButton("🔒  Thực Hiện Mã Hóa");
+        JButton btnEncrypt = accentButton("  Thực Hiện Mã Hóa");
         btnEncrypt.setPreferredSize(new Dimension(180, 42));
         JLabel statusBar = statusLabel("Sẵn sàng hành động");
         bottom.add(btnEncrypt, BorderLayout.WEST);
@@ -369,12 +373,16 @@ public class ElGamalApp extends JFrame {
         GridBagConstraints kgc = gbc();
         JTextField decP = inputField("Nhập p");
         JTextField decX = inputField("Nhập x (bí mật)");
-        kgc.weightx = 0.1; kgc.gridx = 0; keyCard.add(new JLabel("p:"), kgc);
+//        kgc.weightx = 0.1; kgc.gridx = 0; keyCard.add(new JLabel("p:"), kgc);
+//        kgc.weightx = 0.4; kgc.gridx = 1; keyCard.add(decP, kgc);
+//        kgc.weightx = 0.1; kgc.gridx = 2; keyCard.add(new JLabel("x:"), kgc);
+//        kgc.weightx = 0.4; kgc.gridx = 3; keyCard.add(decX, kgc);
+        kgc.weightx = 0.1; kgc.gridx = 0; keyCard.add(whiteLabel("p:"), kgc);
         kgc.weightx = 0.4; kgc.gridx = 1; keyCard.add(decP, kgc);
-        kgc.weightx = 0.1; kgc.gridx = 2; keyCard.add(new JLabel("x:"), kgc);
+        kgc.weightx = 0.1; kgc.gridx = 2; keyCard.add(whiteLabel("x:"), kgc);
         kgc.weightx = 0.4; kgc.gridx = 3; keyCard.add(decX, kgc);
 
-        JButton btnLoadKeyFile = secondaryButton("🔑  Nạp Khóa Từ File");
+        JButton btnLoadKeyFile = secondaryButton("  Nạp Khóa Từ File");
         kgc.gridx = 0; kgc.gridy = 1; kgc.gridwidth = 4; kgc.insets = new Insets(8, 0, 0, 0);
         keyCard.add(btnLoadKeyFile, kgc);
 
@@ -383,7 +391,7 @@ public class ElGamalApp extends JFrame {
         JPanel cipherCtrlCard = card("Quản Lý File Bản Mã");
         cipherCtrlCard.setLayout(new BorderLayout(0, 12));
         JLabel lblCipherFile = dimLabel("Chưa chọn tệp mã hóa đầu vào nào");
-        JButton btnLoadCipher = accentButton("📂  Chọn & Đọc File Bản Mã");
+        JButton btnLoadCipher = accentButton("  Chọn & Đọc File Bản Mã");
         cipherCtrlCard.add(lblCipherFile, BorderLayout.CENTER);
         cipherCtrlCard.add(btnLoadCipher, BorderLayout.SOUTH);
 
@@ -401,14 +409,14 @@ public class ElGamalApp extends JFrame {
         plainCard.setLayout(new BorderLayout(0, 8));
         JTextArea taPlain = textArea(); taPlain.setEditable(false);
         plainCard.add(scrollWrap(taPlain), BorderLayout.CENTER);
-        JButton btnSavePlain = secondaryButton("💾  Xuất Kết Quả Giải Mã Ra File");
+        JButton btnSavePlain = secondaryButton("  Xuất Kết Quả Giải Mã Ra File");
         plainCard.add(btnSavePlain, BorderLayout.SOUTH);
 
         center.add(previewCard); center.add(plainCard);
         root.add(center, BorderLayout.CENTER);
 
         JPanel bottom = darkPanel(new BorderLayout(12, 0));
-        JButton btnDecrypt = accentButton("🔓  Bắt Đầu Giải Mã");
+        JButton btnDecrypt = accentButton("  Bắt Đầu Giải Mã");
         btnDecrypt.setPreferredSize(new Dimension(180, 42));
         JLabel statusBar = statusLabel("Đang chờ dữ liệu đầu vào");
         bottom.add(btnDecrypt, BorderLayout.WEST);
@@ -434,7 +442,7 @@ public class ElGamalApp extends JFrame {
                 statusBar.setText("⚠️ Cấu hình khóa đã bị thay đổi so với file gốc!");
                 statusBar.setForeground(WARNING);
             } else {
-                statusBar.setText("✅ Dữ liệu hiện tại khớp hoàn toàn với file gốc.");
+                statusBar.setText(" Dữ liệu hiện tại khớp hoàn toàn với file gốc.");
                 statusBar.setForeground(SUCCESS);
             }
         };
@@ -461,7 +469,7 @@ public class ElGamalApp extends JFrame {
                 taCipher.setText(content);
                 originalCipher = content; // Cập nhật chuỗi gốc mốc so sánh
 
-                lblCipherFile.setText("✅  " + fc.getSelectedFile().getName());
+                lblCipherFile.setText("  " + fc.getSelectedFile().getName());
                 lblCipherFile.setForeground(SUCCESS);
                 checkRealtimeChanges.run();
             } catch (IOException ex) {
@@ -554,7 +562,7 @@ public class ElGamalApp extends JFrame {
                 }
 
                 taPlain.setText(sb.toString());
-                statusBar.setText("Giải mã dữ liệu hoàn tất thành công! ✅");
+                statusBar.setText("Giải mã dữ liệu hoàn tất thành công! ");
                 statusBar.setForeground(SUCCESS);
             } catch (Exception ex) {
                 statusBar.setText("Giải mã thất bại: " + ex.getMessage()); statusBar.setForeground(DANGER);
@@ -670,8 +678,20 @@ public class ElGamalApp extends JFrame {
         l.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4)); return l;
     }
 
+//    private void setText(JLabel l, String k, String v) {
+//        l.setText(String.format("<html><span style='color:#94a3b8'>%s:</span> &nbsp; <b style='color:#38bdf8'>%s</b></html>", k, v));
+//    }
+
     private void setText(JLabel l, String k, String v) {
-        l.setText(String.format("<html><span style='color:#94a3b8'>%s:</span> &nbsp; <b style='color:#38bdf8'>%s</b></html>", k, v));
+        l.setText(String.format("<html><span style='color:#ffffff'>%s:</span> &nbsp; <b style='color:#ffffff'>%s</b></html>", k, v));
+    }
+
+    // THÊM MỚI: Hàm helper giúp tạo nhãn chữ màu trắng sáng đồng bộ cho Tab 2 và Tab 3
+    private JLabel whiteLabel(String txt) {
+        JLabel l = new JLabel(txt);
+        l.setForeground(TEXT_MAIN);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        return l;
     }
 
     private JLabel statusLabel(String txt) {
