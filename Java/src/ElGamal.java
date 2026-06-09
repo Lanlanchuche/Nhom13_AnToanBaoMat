@@ -114,25 +114,31 @@ public class ElGamal {
         return true;
     }
 
-    // SINH KHÓA
+    // SINH KHÓA 32-BIT TỐI ĐA
     public static int[] generateKey() {
-
         Random rd = new Random();
 
         int p;
-
         do {
-            p = rd.nextInt(500) + 500; // 500 -> 999
+            p = rd.nextInt(Integer.MAX_VALUE - 1000000) + 1000000;
+            if (p % 2 == 0) p++; // Đảm bảo là số lẻ
         } while (!isPrime(p));
 
+        // Tìm phần tử sinh g
         int g = 2;
-
         while (g < p && !isGenerator(g, p)) {
             g++;
+            if (g > 1000) break; // Giới hạn tìm kiếm
+        }
+
+        // Nếu không tìm thấy trong 1000 số đầu, tìm ngẫu nhiên
+        if (!isGenerator(g, p)) {
+            do {
+                g = rd.nextInt(p - 2) + 2;
+            } while (!isGenerator(g, p));
         }
 
         int x = rd.nextInt(p - 3) + 2;
-
         int y = (int) modPow(g, x, p);
 
         return new int[]{p, g, x, y};
