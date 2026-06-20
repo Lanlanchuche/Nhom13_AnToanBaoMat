@@ -4,8 +4,8 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.Random;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -19,9 +19,9 @@ public class ElgamalUI extends JFrame {
 
     private JTextArea txtPlain, txtC1, txtC2, txtCipher, txtDecrypt, txtCipherIn;
 
-    private JButton btnGenAuto, btnGenManual;
+    private JButton btnGenAuto, btnGenManual, btnGenPQManual;
     private JButton btnEncrypt, btnDecrypt, btnClear, btnExit;
-    private JButton btnSaveKey, btnSavePlain, btnSaveCipher, btnSaveDecrypt;
+    private JButton btnSavePlain, btnSaveDecrypted, btnSaveCipher, btnSaveKey;
     private JButton btnLoadPlain, btnLoadCipher;
 
     private JTabbedPane keyTabs;
@@ -126,13 +126,23 @@ public class ElgamalUI extends JFrame {
         addRow(p, gc, 3, "d = a^x mod p  d =", txtY_m);
         addRow(p, gc, 4, "Số ngẫu nhiên k =", txtK_m);
 
+        JLabel note = new JLabel("<html><i style='color:#666'>p phải là số nguyên tố an toàn (p = 2q+1, q nguyên tố) để kiểm tra phần tử sinh được với số 512-bit.</i></html>");
         gc.gridx=0; gc.gridy=5; gc.gridwidth=2;
-        gc.insets = new Insets(4,2,2,2);
+        gc.insets = new Insets(2,2,6,2);
+        p.add(note, gc);
+
+        gc.gridy=6;
+        gc.insets = new Insets(3,2,3,2);
+        btnGenPQManual = makeButton("Sinh p, a hợp lệ (512-bit)", new Color(0x16A085), Color.WHITE);
+        btnGenPQManual.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        p.add(btnGenPQManual, gc);
+
+        gc.gridy=7;
         btnGenManual = makeButton("Tính d từ tham số", new Color(0x27AE60), Color.WHITE);
         btnGenManual.setFont(new Font("Segoe UI", Font.BOLD, 12));
         p.add(btnGenManual, gc);
 
-        gc.gridy=6; gc.weighty=1;
+        gc.gridy=8; gc.weighty=1;
         p.add(new JLabel(), gc);
 
         return p;
@@ -233,16 +243,18 @@ public class ElgamalUI extends JFrame {
 
     // ── Bottom button bar ─────────────────────────────────────────────────────
     private JPanel buildButtonBar() {
-        JPanel bar = new JPanel(new GridLayout(1, 5, 6, 0));
+        JPanel bar = new JPanel(new GridLayout(1, 6, 6, 0));
         bar.setPreferredSize(new Dimension(0, 36));
 
-        btnSavePlain  = makeButton("Lưu file mã hóa", new Color(0x27AE60), Color.WHITE);
-        btnSaveCipher = makeButton("Chuyển →", new Color(0x2980B9), Color.WHITE);
-        btnSaveKey    = makeButton("Lưu khóa", new Color(0xE67E22), Color.WHITE);
-        btnClear      = makeButton("Làm mới", new Color(0x7F8C8D), Color.WHITE);
-        btnExit       = makeButton("Thoát", new Color(0xC0392B), Color.WHITE);
+        btnSavePlain      = makeButton("Lưu bản rõ gốc", new Color(0x27AE60), Color.WHITE);
+        btnSaveDecrypted  = makeButton("Lưu bản rõ giải mã", new Color(0x8E44AD), Color.WHITE);
+        btnSaveCipher     = makeButton("Chuyển →", new Color(0x2980B9), Color.WHITE);
+        btnSaveKey        = makeButton("Lưu khóa", new Color(0xE67E22), Color.WHITE);
+        btnClear          = makeButton("Làm mới", new Color(0x7F8C8D), Color.WHITE);
+        btnExit           = makeButton("Thoát", new Color(0xC0392B), Color.WHITE);
 
         bar.add(btnSavePlain);
+        bar.add(btnSaveDecrypted);
         bar.add(btnSaveCipher);
         bar.add(btnSaveKey);
         bar.add(btnClear);
@@ -253,9 +265,9 @@ public class ElgamalUI extends JFrame {
     // ── Component helpers ─────────────────────────────────────────────────────
     private Border titledBorder(String title) {
         TitledBorder tb = BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(0xAAAAAA), 1), title,
-            TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("Segoe UI", Font.BOLD, 13), new Color(0x2C3E50));
+                BorderFactory.createLineBorder(new Color(0xAAAAAA), 1), title,
+                TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Segoe UI", Font.BOLD, 13), new Color(0x2C3E50));
         return BorderFactory.createCompoundBorder(tb, new EmptyBorder(2, 4, 4, 4));
     }
 
@@ -295,61 +307,101 @@ public class ElgamalUI extends JFrame {
 
     // ── Helper accessors (active tab) ─────────────────────────────────────────
     private boolean isAuto() { return keyTabs.getSelectedIndex() == 0; }
-    private int getP()  { return parse(isAuto() ? txtP_a : txtP_m); }
-    private int getA()  { return parse(isAuto() ? txtG_a : txtG_m); }
-    private int getPrivateKey()  { return parse(isAuto() ? txtX_a : txtX_m); }
-    private int getPublickey()  { return parse(isAuto() ? txtY_a : txtY_m); }
-    private int getK()  { return parse(isAuto() ? txtK_a : txtK_m); }
-    private int parse(JTextField f) {
-    try {
-        return Integer.parseInt(f.getText().trim());
-    } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Vui lòng nhập số hợp lệ");
+    private BigInteger getP()  { return parse(isAuto() ? txtP_a : txtP_m); }
+    private BigInteger getA()  { return parse(isAuto() ? txtG_a : txtG_m); }
+    private BigInteger getPrivateKey()  { return parse(isAuto() ? txtX_a : txtX_m); }
+    private BigInteger getPublickey()  { return parse(isAuto() ? txtY_a : txtY_m); }
+    private BigInteger getK()  { return parse(isAuto() ? txtK_a : txtK_m); }
+    private BigInteger parse(JTextField f) {
+        try {
+            return new BigInteger(f.getText().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Vui lòng nhập số hợp lệ");
+        }
     }
-}
 
     // ── Events ────────────────────────────────────────────────────────────────
     private void initEvents() {
 
         // Auto generate
         btnGenAuto.addActionListener(e -> {
-            try {
-                int[] key = ElGamal.generateKey();
-                txtP_a.setText(String.valueOf(key[0]));
-                txtG_a.setText(String.valueOf(key[1]));
-                txtX_a.setText(String.valueOf(key[2]));
-                txtY_a.setText(String.valueOf(key[3]));
-                Random rd = new Random();
-                int p = key[0], k;
-                do { k = rd.nextInt(p - 3) + 2; } while (!ElGamal.gcdEqualsOne(k, p - 1));
-                txtK_a.setText(String.valueOf(k));
-            } catch (Exception ex) { err("Lỗi tạo khóa tự động"); }
+            btnGenAuto.setEnabled(false);
+            String oldText = btnGenAuto.getText();
+            btnGenAuto.setText("Đang tạo khóa 512-bit, vui lòng đợi...");
+            new SwingWorker<BigInteger[], Void>() {
+                @Override protected BigInteger[] doInBackground() {
+                    BigInteger[] key = ElGamal.generateKey(); // p, g, x, y (p là số nguyên tố an toàn 512-bit)
+                    BigInteger k = ElGamal.generateK(key[0]);
+                    return new BigInteger[]{key[0], key[1], key[2], key[3], k};
+                }
+                @Override protected void done() {
+                    try {
+                        BigInteger[] r = get();
+                        txtP_a.setText(r[0].toString());
+                        txtG_a.setText(r[1].toString());
+                        txtX_a.setText(r[2].toString());
+                        txtY_a.setText(r[3].toString());
+                        txtK_a.setText(r[4].toString());
+                    } catch (Exception ex) { err("Lỗi tạo khóa tự động"); }
+                    finally {
+                        btnGenAuto.setEnabled(true);
+                        btnGenAuto.setText(oldText);
+                    }
+                }
+            }.execute();
+        });
+
+        // Manual: generate a valid 256-bit safe prime p and generator a
+        btnGenPQManual.addActionListener(e -> {
+            btnGenPQManual.setEnabled(false);
+            String oldText = btnGenPQManual.getText();
+            btnGenPQManual.setText("Đang sinh p, a...");
+            new SwingWorker<BigInteger[], Void>() {
+                @Override protected BigInteger[] doInBackground() {
+                    BigInteger[] safe = ElGamal.generateSafePrime(ElGamal.KEY_BITS);
+                    BigInteger p = safe[0], q = safe[1];
+                    BigInteger g = ElGamal.generateGenerator(p, q);
+                    return new BigInteger[]{p, g};
+                }
+                @Override protected void done() {
+                    try {
+                        BigInteger[] pg = get();
+                        txtP_m.setText(pg[0].toString());
+                        txtG_m.setText(pg[1].toString());
+                    } catch (Exception ex) { err("Lỗi sinh p, a"); }
+                    finally {
+                        btnGenPQManual.setEnabled(true);
+                        btnGenPQManual.setText(oldText);
+                    }
+                }
+            }.execute();
         });
 
         // Manual compute d
         btnGenManual.addActionListener(e -> {
             try {
-                int p = parse(txtP_m), g = parse(txtG_m), x = parse(txtX_m);
-                if (!ElGamal.isPrime(p))        { err("p phải là số nguyên tố"); return; }
+                BigInteger p = parse(txtP_m), g = parse(txtG_m), x = parse(txtX_m);
+                if (!ElGamal.isSafePrime(p))    { err("p phải là số nguyên tố an toàn (p = 2q+1, q cũng nguyên tố)"); return; }
                 if (!ElGamal.isGenerator(g, p)) { err("a không phải phần tử sinh của Zp*"); return; }
-                txtY_m.setText(String.valueOf((int) ElGamal.modPow(g, x, p)));
+                txtY_m.setText(ElGamal.modPow(g, x, p).toString());
             } catch (Exception ex) { err("Lỗi tính khóa thủ công"); }
         });
 
         // Encrypt
         btnEncrypt.addActionListener(e -> {
             try {
-                int p = getP(), g = getA(), y = getPublickey(), k = getK();
-                if (p <= 255) {
-    err("p phải lớn hơn 255 để mã hóa ký tự UTF-8");
-    return;
-}
-                if (k <= 1 || k >= p - 1)             { err("k phải thỏa 1 < k < p-1"); return; }
-                if (!ElGamal.gcdEqualsOne(k, p - 1))  { err("k phải nguyên tố cùng nhau với p-1"); return; }
+                BigInteger p = getP(), g = getA(), y = getPublickey(), k = getK();
+                if (p.compareTo(BigInteger.valueOf(255)) <= 0) {
+                    err("p phải lớn hơn 255 để mã hóa ký tự UTF-8");
+                    return;
+                }
+                BigInteger pMinus1 = p.subtract(BigInteger.ONE);
+                if (k.compareTo(BigInteger.ONE) <= 0 || k.compareTo(pMinus1) >= 0)  { err("k phải thỏa 1 < k < p-1"); return; }
+                if (!ElGamal.gcdEqualsOne(k, pMinus1))  { err("k phải nguyên tố cùng nhau với p-1"); return; }
                 StringBuilder sb1 = new StringBuilder(), sb2 = new StringBuilder(), sb3 = new StringBuilder();
                 for (byte b : txtPlain.getText().getBytes(StandardCharsets.UTF_8)) {
                     int m = b & 0xFF;
-                    int[] pair = ElGamal.encryptChar(m, p, g, y, k);
+                    BigInteger[] pair = ElGamal.encryptChar(BigInteger.valueOf(m), p, g, y, k);
                     sb1.append(pair[0]).append("\n");
                     sb2.append(pair[1]).append("\n");
                     sb3.append("(").append(pair[0]).append(", ").append(pair[1]).append(")\n");
@@ -365,33 +417,41 @@ public class ElgamalUI extends JFrame {
         // Decrypt — uses txtCipherIn (top-right) first, falls back to txtCipher
         btnDecrypt.addActionListener(e -> {
             try {
-                int p = getP(), x = getPrivateKey();
+                BigInteger p = getP(), x = getPrivateKey();
                 String src = txtCipherIn.getText().trim().isEmpty() ? txtCipher.getText() : txtCipherIn.getText();
-               txtDecrypt.setText(decryptText(src, p, x));
+                txtDecrypt.setText(decryptText(src, p, x));
 
-boolean mod = isCurrentCipherModified();
+                boolean mod = isCurrentCipherModified();
 
-boolean bad = false;
-if (originalPlainText != null) {
-    bad = !originalPlainText.trim()
-            .equals(txtDecrypt.getText().trim());
-}
+                boolean bad = false;
+                if (originalPlainText != null) {
+                    bad = !originalPlainText.trim()
+                            .equals(txtDecrypt.getText().trim());
+                }
 
-if (bad || mod) {
-    err((bad ? "Khóa sai" : "") +
-        (bad && mod ? " và " : "") +
-        (mod ? "bản mã đã bị chỉnh sửa" : ""));
-}
+                if (bad || mod) {
+                    err((bad ? "Khóa sai" : "") +
+                            (bad && mod ? " và " : "") +
+                            (mod ? "bản mã đã bị chỉnh sửa" : ""));
+                }
             } catch (Exception ex) { err("Lỗi giải mã dữ liệu."); }
         });
 
         // "Chuyển →" copies cipher to cipherIn
         btnSaveCipher.addActionListener(e -> txtCipherIn.setText(txtCipher.getText()));
 
+        // Lưu bản rõ gốc (txtPlain)
         btnSavePlain.addActionListener(e -> {
             String t = txtPlain.getText();
-            if (t.isEmpty()) { err("Chưa có bản gốc."); return; }
-            saveFile(t, "original");
+            if (t.isEmpty()) { err("Chưa có bản rõ gốc."); return; }
+            saveFile(t, "plaintext_original");
+        });
+
+        // Lưu bản rõ giải mã (txtDecrypt)
+        btnSaveDecrypted.addActionListener(e -> {
+            String t = txtDecrypt.getText();
+            if (t.isEmpty()) { err("Chưa có bản rõ giải mã."); return; }
+            saveFile(t, "plaintext_decrypted");
         });
 
         btnSaveKey.addActionListener(e -> {
@@ -467,17 +527,20 @@ if (bad || mod) {
                 return sb.toString();
             }
         }catch (Exception ex) { err("Không thể đọc file."); return null ; }
-}
+    }
 
     // ── Crypto helpers ────────────────────────────────────────────────────────
-    private String decryptText(String cipherText, int p, int x) throws IOException {
+    private String decryptText(String cipherText, BigInteger p, BigInteger x) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         for (String line : cipherText.split("\n")) {
             line = line.trim();
             if (line.isEmpty()) continue;
             line = line.replace("(","").replace(")","");
             String[] parts = line.split(",");
-            baos.write(ElGamal.decryptChar(Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()), p, x));
+            BigInteger c1 = new BigInteger(parts[0].trim());
+            BigInteger c2 = new BigInteger(parts[1].trim());
+            BigInteger m  = ElGamal.decryptChar(c1, c2, p, x);
+            baos.write(m.intValue() & 0xFF);
         }
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
     }
@@ -487,45 +550,45 @@ if (bad || mod) {
     }
 
     private boolean isCurrentKeyWrong() {
-    if (originalPlainText == null || originalCipherText == null) {
-        return false;
+        if (originalPlainText == null || originalCipherText == null) {
+            return false;
+        }
+
+        try {
+            String decrypted = decryptText(
+                    originalCipherText,
+                    getP(),
+                    getPrivateKey());
+
+            return !originalPlainText.trim()
+                    .equals(decrypted.trim());
+
+        } catch (Exception e) {
+            return true;
+        }
     }
-
-    try {
-        String decrypted = decryptText(
-                originalCipherText,
-                getP(),
-                getPrivateKey());
-
-        return !originalPlainText.trim()
-                .equals(decrypted.trim());
-
-    } catch (Exception e) {
-        return true;
-    }
-}
 
     // ── DOCX writer ───────────────────────────────────────────────────────────
     private void writeDocx(File file, String text) throws IOException {
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(file))) {
             putEntry(zos, "[Content_Types].xml",
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
-                "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
-                "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
-                "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
-                "</Types>");
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+                            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+                            "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+                            "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
+                            "</Types>");
             putEntry(zos, "_rels/.rels",
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
-                "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
-                "</Relationships>");
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+                            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
+                            "</Relationships>");
             putEntry(zos, "word/_rels/document.xml.rels",
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>");
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>");
             StringBuilder doc = new StringBuilder(
-                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-                "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>");
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>");
             for (String line : text.split("\r?\n"))
                 doc.append("<w:p><w:r><w:t>").append(xmlEsc(line)).append("</w:t></w:r></w:p>");
             doc.append("</w:body></w:document>");
