@@ -21,7 +21,7 @@ public class ElgamalUI extends JFrame {
 
     private JButton btnGenAuto, btnGenManual, btnGenPQManual;
     private JButton btnEncrypt, btnDecrypt, btnClear, btnExit;
-    private JButton btnSavePlain, btnSaveDecrypted, btnSaveCipher, btnSaveKey;
+    private JButton btnSaveKey, btnSavePlain, btnSaveCipher, btnSaveDecrypt;
     private JButton btnLoadPlain, btnLoadCipher;
 
     private JTabbedPane keyTabs;
@@ -243,18 +243,16 @@ public class ElgamalUI extends JFrame {
 
     // ── Bottom button bar ─────────────────────────────────────────────────────
     private JPanel buildButtonBar() {
-        JPanel bar = new JPanel(new GridLayout(1, 6, 6, 0));
+        JPanel bar = new JPanel(new GridLayout(1, 5, 6, 0));
         bar.setPreferredSize(new Dimension(0, 36));
 
-        btnSavePlain      = makeButton("Lưu bản rõ gốc", new Color(0x27AE60), Color.WHITE);
-        btnSaveDecrypted  = makeButton("Lưu bản rõ giải mã", new Color(0x8E44AD), Color.WHITE);
-        btnSaveCipher     = makeButton("Chuyển →", new Color(0x2980B9), Color.WHITE);
-        btnSaveKey        = makeButton("Lưu khóa", new Color(0xE67E22), Color.WHITE);
-        btnClear          = makeButton("Làm mới", new Color(0x7F8C8D), Color.WHITE);
-        btnExit           = makeButton("Thoát", new Color(0xC0392B), Color.WHITE);
+        btnSavePlain  = makeButton("Lưu file mã hóa", new Color(0x27AE60), Color.WHITE);
+        btnSaveCipher = makeButton("Chuyển →", new Color(0x2980B9), Color.WHITE);
+        btnSaveKey    = makeButton("Lưu khóa", new Color(0xE67E22), Color.WHITE);
+        btnClear      = makeButton("Làm mới", new Color(0x7F8C8D), Color.WHITE);
+        btnExit       = makeButton("Thoát", new Color(0xC0392B), Color.WHITE);
 
         bar.add(btnSavePlain);
-        bar.add(btnSaveDecrypted);
         bar.add(btnSaveCipher);
         bar.add(btnSaveKey);
         bar.add(btnClear);
@@ -440,18 +438,10 @@ public class ElgamalUI extends JFrame {
         // "Chuyển →" copies cipher to cipherIn
         btnSaveCipher.addActionListener(e -> txtCipherIn.setText(txtCipher.getText()));
 
-        // Lưu bản rõ gốc (txtPlain)
         btnSavePlain.addActionListener(e -> {
             String t = txtPlain.getText();
-            if (t.isEmpty()) { err("Chưa có bản rõ gốc."); return; }
-            saveFile(t, "plaintext_original");
-        });
-
-        // Lưu bản rõ giải mã (txtDecrypt)
-        btnSaveDecrypted.addActionListener(e -> {
-            String t = txtDecrypt.getText();
-            if (t.isEmpty()) { err("Chưa có bản rõ giải mã."); return; }
-            saveFile(t, "plaintext_decrypted");
+            if (t.isEmpty()) { err("Chưa có bản gốc."); return; }
+            saveFile(t, "original");
         });
 
         btnSaveKey.addActionListener(e -> {
