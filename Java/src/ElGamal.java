@@ -137,17 +137,60 @@ public class ElGamal {
     }
 
     // MÃ HÓA 1 KÝ TỰ / KHỐI: m PHẢI THỎA 0 <= m < p
-    public static BigInteger[] encryptChar(BigInteger m, BigInteger p, BigInteger g, BigInteger y, BigInteger k) {
-        BigInteger c1 = g.modPow(k, p);
-        BigInteger c2 = m.multiply(y.modPow(k, p)).mod(p);
-        return new BigInteger[]{c1, c2};
+public static BigInteger[] encryptChar(BigInteger m, BigInteger p, BigInteger g, BigInteger y, BigInteger k) {
+    // kiểm tra dữ liệu đầu vào
+    if (m == null || p == null || g == null || y == null || k == null) {
+        throw new IllegalArgumentException("Tham số mã hóa không được để trống.");
     }
 
-    // GIẢI MÃ 1 KÝ TỰ / KHỐI
-    public static BigInteger decryptChar(BigInteger c1, BigInteger c2, BigInteger p, BigInteger x) {
-        BigInteger s = c1.modPow(x, p);
-        BigInteger sInv = s.modInverse(p);
-        return c2.multiply(sInv).mod(p);
+    if (m.compareTo(BigInteger.ZERO) < 0 || m.compareTo(p) >= 0) {
+        throw new IllegalArgumentException("Bản rõ m phải thỏa 0 <= m < p.");
+    }
+
+    BigInteger pMinus1 = p.subtract(BigInteger.ONE);
+    if (k.compareTo(BigInteger.ONE) <= 0 || k.compareTo(pMinus1) >= 0) {
+        throw new IllegalArgumentException("k phải thỏa 1 < k < p-1.");
+    }
+
+    if (!gcdEqualsOne(k, pMinus1)) {
+        throw new IllegalArgumentException("k phải nguyên tố cùng nhau với p-1.");
+    }
+
+    // ElGamal:
+    // c1 = g^k mod p
+    // c2 = m * y^k mod p
+    BigInteger c1 = g.modPow(k, p);
+    BigInteger c2 = m.multiply(y.modPow(k, p)).mod(p);
+
+    return new BigInteger[]{c1, c2};
+}
+
+// GIẢI MÃ 1 KÝ TỰ / KHỐI
+public static BigInteger decryptChar(BigInteger c1, BigInteger c2, BigInteger p, BigInteger x) {
+    // kiểm tra dữ liệu đầu vào
+    if (c1 == null || c2 == null || p == null || x == null) {
+        throw new IllegalArgumentException("Tham số giải mã không được để trống.");
+    }
+
+    if (c1.compareTo(BigInteger.ZERO) < 0 || c1.compareTo(p) >= 0) {
+        throw new IllegalArgumentException("c1 không hợp lệ.");
+    }
+
+    if (c2.compareTo(BigInteger.ZERO) < 0 || c2.compareTo(p) >= 0) {
+        throw new IllegalArgumentException("c2 không hợp lệ.");
+    }
+
+    // s = c1^x mod p
+    BigInteger s = c1.modPow(x, p);
+
+    // sInv = s^(-1) mod p
+    BigInteger sInv = modInverse(s, p);
+    if (sInv.equals(BigInteger.valueOf(-1))) {
+        throw new ArithmeticException("Không tìm được nghịch đảo modulo.");
+    }
+
+    // m = c2 * sInv mod p
+    return c2.multiply(sInv).mod(p);
 }
 }
 //END.
