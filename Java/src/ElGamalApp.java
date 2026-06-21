@@ -12,20 +12,35 @@ import java.util.*;
 
 public class ElGamalApp extends JFrame {
 
-    // ===== BẢNG MÀU MODERN DARK =====
-    static final Color BG_MAIN     = new Color(11, 15, 25);     // #0b0f19
-    static final Color BG_PANEL    = new Color(21, 31, 50);     // #151f32
-    static final Color BG_INPUT    = new Color(29, 41, 62);     // #1d293e
-    static final Color ACCENT      = new Color(56, 189, 248);   // #38bdf8
-    static final Color ACCENT_DARK = new Color(14, 165, 233);   // #0ea5e9
-    static final Color SUCCESS     = new Color(34, 197, 94);    // #22c55e
-    static final Color WARNING     = new Color(234, 179, 8);    // #eab308
-    static final Color DANGER      = new Color(239, 68, 68);    // #ef4444
-    static final Color TEXT_MAIN   = new Color(248, 250, 252);  // #f8fafc
-    static final Color TEXT_DIM    = new Color(148, 163, 184);  // #94a3b8
-    static final Color BORDER_CLR  = new Color(51, 65, 85);     // #334155
-    static final Color BUTTON_SEC  = new Color(39, 55, 81);     // #273751
-    static final Color BUTTON_SEC_HOVER = new Color(51, 71, 102); // #334766
+//    // ===== BẢNG MÀU MODERN DARK =====
+//    static final Color BG_MAIN     = new Color(11, 15, 25);     // #0b0f19
+//    static final Color BG_PANEL    = new Color(21, 31, 50);     // #151f32
+//    static final Color BG_INPUT    = new Color(29, 41, 62);     // #1d293e
+//    static final Color ACCENT      = new Color(56, 189, 248);   // #38bdf8
+//    static final Color ACCENT_DARK = new Color(14, 165, 233);   // #0ea5e9
+//    static final Color SUCCESS     = new Color(34, 197, 94);    // #22c55e
+//    static final Color WARNING     = new Color(234, 179, 8);    // #eab308
+//    static final Color DANGER      = new Color(239, 68, 68);    // #ef4444
+//    static final Color TEXT_MAIN   = new Color(248, 250, 252);  // #f8fafc
+//    static final Color TEXT_DIM    = new Color(148, 163, 184);  // #94a3b8
+//    static final Color BORDER_CLR  = new Color(51, 65, 85);     // #334155
+//    static final Color BUTTON_SEC  = new Color(39, 55, 81);     // #273751
+//    static final Color BUTTON_SEC_HOVER = new Color(51, 71, 102); // #334766
+
+    // ===== BẢNG MÀU LIGHT =====
+    static final Color BG_MAIN     = new Color(245, 247, 250);   // #f5f7fa
+    static final Color BG_PANEL    = new Color(255, 255, 255);   // #ffffff
+    static final Color BG_INPUT    = new Color(248, 250, 252);   // #f8fafc
+    static final Color ACCENT      = new Color(37, 99, 235);     // #2563eb (xanh đậm)
+    static final Color ACCENT_DARK = new Color(29, 78, 216);     // #1d4ed8
+    static final Color SUCCESS     = new Color(22, 163, 74);     // #16a34a
+    static final Color WARNING     = new Color(202, 138, 4);     // #ca8a04
+    static final Color DANGER      = new Color(220, 38, 38);     // #dc2626
+    static final Color TEXT_MAIN   = new Color(15, 23, 42);      // #0f172a
+    static final Color TEXT_DIM    = new Color(71, 85, 105);     // #475569
+    static final Color BORDER_CLR  = new Color(203, 213, 225);   // #cbd5e1
+    static final Color BUTTON_SEC  = new Color(226, 232, 240);   // #e2e8f0
+    static final Color BUTTON_SEC_HOVER = new Color(203, 213, 225); // #cbd5e1
 
     // SHARED STATE
     private BigInteger sharedP = BigInteger.ZERO, sharedG = BigInteger.ZERO,
@@ -415,6 +430,7 @@ public class ElGamalApp extends JFrame {
             }
         };
 
+
         DocumentListener dynamicListener = new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { checkRealtimeChanges.run(); }
             public void removeUpdate(DocumentEvent e) { checkRealtimeChanges.run(); }
@@ -643,8 +659,12 @@ public class ElGamalApp extends JFrame {
         l.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4)); return l;
     }
 
+//    private void setText(JLabel l, String k, String v) {
+//        l.setText(String.format("<html><span style='color:#ffffff'>%s:</span> &nbsp; <b style='color:#ffffff'>%s</b></html>", k, v));
+//    }
+
     private void setText(JLabel l, String k, String v) {
-        l.setText(String.format("<html><span style='color:#ffffff'>%s:</span> &nbsp; <b style='color:#ffffff'>%s</b></html>", k, v));
+        l.setText(String.format("<html><span style='color:#000000'>%s:</span> &nbsp; <b style='color:#000000'>%s</b></html>", k, v));
     }
 
     // THÊM MỚI: Hàm helper giúp tạo nhãn chữ màu trắng sáng đồng bộ cho Tab 2 và Tab 3
