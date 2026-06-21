@@ -4,6 +4,7 @@ from tkinter import messagebox, ttk, filedialog
 from elgamal_math import ElGamalMath
 import random
 import os
+import re
 import threading
 
 
@@ -141,10 +142,15 @@ class ElGamalUI:
         self.lbl_input_path.pack(side="left", padx=10, fill="x", expand=True)
         ttk.Button(file_select_enc, text="Xóa chọn", command=self._clear_input_file_selection).pack(side="right")
 
-        tk.Label(enc_frame, text="Hoặc nhập chuỗi bản rõ gõ tay từ bàn phím (Nếu không chọn file):",
+        tk.Label(enc_frame, text="Hoặc nhập chuỗi bản rõ gõ tay từ bàn phím (tự khóa nếu đã chọn file ở trên):",
                  font=("Helvetica", 9, "bold"), bg="#F5F7FA", fg="#4A5568").pack(anchor="w", padx=10, pady=(5, 0))
         self.txt_manual_plain = tk.Text(enc_frame, height=4, font=("Courier New", 10), bd=1, relief="solid")
         self.txt_manual_plain.pack(fill="x", padx=10, pady=2)
+
+        manual_plain_btn_bar = tk.Frame(enc_frame, bg="#F5F7FA")
+        manual_plain_btn_bar.pack(fill="x", padx=10, pady=(0, 3))
+        ttk.Button(manual_plain_btn_bar, text="Lưu Bản Gõ Tay Ra File...", style="Accent.TButton",
+                   command=self._on_save_manual_plain_to_file).pack(side="right")
 
         action_bar_enc = tk.Frame(enc_frame, bg="#F5F7FA")
         action_bar_enc.pack(fill="x", padx=10, pady=5)
@@ -179,7 +185,7 @@ class ElGamalUI:
         self.lbl_cipher_path.pack(side="left", padx=10, fill="x", expand=True)
         ttk.Button(file_select_dec, text="Xóa chọn", command=self._clear_cipher_file_selection).pack(side="right")
 
-        tk.Label(dec_frame, text="Hoặc dán chuỗi bản mã gõ tay (Format: c1,c2 c1,c2 ...):",
+        tk.Label(dec_frame, text="Hoặc dán chuỗi bản mã gõ tay (Format: c1,c2 c1,c2 ... - tự khóa nếu đã chọn file):",
                  font=("Helvetica", 9, "bold"), bg="#F5F7FA", fg="#4A5568").pack(anchor="w", padx=10, pady=(5, 0))
         self.txt_manual_cipher = tk.Text(dec_frame, height=4, font=("Courier New", 9), bd=1, relief="solid",
                                          wrap="word")
@@ -226,6 +232,23 @@ class ElGamalUI:
         if self.p and self.g and self.y:
             self.lbl_y.config(
                 text=f"Bộ khóa hiện hành: (p={self.p}, g={self.g}, x={self.x if self.x else 'Chưa nạp'}, y={self.y})")
+
+    def _read_keys_from_ui(self) -> bool:
+        """Đọc trực tiếp giá trị hiện tại trên các ô nhập (p, g, x, y) ngay trước khi Mã hóa/Giải mã.
+        Nhờ vậy nếu người dùng SỬA TRỰC TIẾP khóa trên giao diện (không bấm nút Áp Dụng),
+        thay đổi đó vẫn được hệ thống ghi nhận và sẽ bị phát hiện nếu không khớp logic ElGamal."""
+        def parse(entry):
+            s = entry.get().strip()
+            return int(s) if s else None
+        try:
+            self.p = parse(self.ent_p)
+            self.g = parse(self.ent_g)
+            self.x = parse(self.ent_x)
+            self.y = parse(self.ent_y)
+            return True
+        except ValueError:
+            messagebox.showerror("Lỗi định dạng", "Các ô khóa (p, g, x, y) phải là số nguyên hợp lệ!")
+            return False
 
     # --- SỰ KIỆN QUẢN LÝ KHÓA (THỦ CÔNG VÀ TỰ ĐỘNG) ---
     def _on_apply_manual_keys(self):
@@ -307,9 +330,13 @@ class ElGamalUI:
         file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text File", "*.txt")],
                                                  title="Lưu File Khóa")
         if file_path:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(f"p={self.p}\ng={self.g}\nx={self.x if self.x else ''}\ny={self.y}\n")
-            self._log(f"Đã lưu tệp thông số khóa tại {os.path.basename(file_path)}")
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(f"p={self.p}\ng={self.g}\nx={self.x if self.x else ''}\ny={self.y}\n")
+                self._log(f"Đã lưu tệp thông số khóa tại {os.path.basename(file_path)}")
+                messagebox.showinfo("Thành công", f"Đã lưu bộ khóa vào tệp: {os.path.basename(file_path)}")
+            except Exception as e:
+                messagebox.showerror("Lỗi lưu khóa", f"Không thể lưu file khóa: {e}")
 
     def _on_load_keys_from_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Text File", "*.txt")], title="Mở File Khóa")
@@ -323,23 +350,90 @@ class ElGamalUI:
                             keys[k.strip()] = int(v.strip()) if v.strip() else None
                 self.p, self.g, self.x, self.y = keys["p"], keys["g"], keys.get("x"), keys["y"]
                 self._sync_key_entries()
+
+                # Kiểm tra trực tiếp ngay khi tải: phát hiện sớm nếu khóa bí mật (x) bị sửa/không khớp
+                if self.x is not None and self.g is not None and self.y is not None:
+                    if ElGamalMath.power(self.g, self.x, self.p) != self.y:
+                        messagebox.showwarning(
+                            "CẢNH BÁO: KHÓA BỊ SỬA",
+                            "Khóa bí mật (x) trong file không khớp với khóa công khai (p, g, y)!\n"
+                            "File khóa có thể đã bị chỉnh sửa. Việc giải mã sẽ thất bại."
+                        )
+                        self._log("Cảnh báo: File khóa tải lên không hợp lệ (x không khớp y).")
+                        return
                 self._log("Tải dữ liệu file khóa hoàn tất.")
+                messagebox.showinfo("Thành công", "Đã tải bộ khóa từ file thành công!")
             except Exception:
                 messagebox.showerror("Lỗi", "Cấu trúc file khóa không hợp lệ.")
 
     # --- SỰ KIỆN PHÂN HỆ MÃ HÓA (ĐA LUỒNG) ---
+    def _on_save_manual_plain_to_file(self):
+        """Lưu trực tiếp nội dung đang gõ tay trong ô nhập (chưa mã hóa) ra file văn bản,
+        độc lập hoàn toàn với việc có thực hiện mã hóa hay không."""
+        content = self.txt_manual_plain.get("1.0", tk.END).rstrip("\n")
+        if not content.strip():
+            messagebox.showwarning("Thiếu dữ liệu", "Ô nhập tay đang trống, chưa có nội dung để lưu!")
+            return
+        save_path = filedialog.asksaveasfilename(
+            title="Lưu nội dung gõ tay",
+            defaultextension=".txt",
+            filetypes=[
+                ("Văn bản thuần túy (*.txt)", "*.txt"),
+                ("Tất cả các tệp (*.*)", "*.*")
+            ]
+        )
+        if save_path:
+            try:
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                self._log(f"Đã lưu nội dung gõ tay tại: {os.path.basename(save_path)}")
+                messagebox.showinfo("Thành công", f"Đã lưu nội dung gõ tay vào tệp: {os.path.basename(save_path)}")
+            except Exception as e:
+                messagebox.showerror("Lỗi lưu file", str(e))
+
     def _on_browse_input_file(self):
         path = filedialog.askopenfilename(title="Chọn file cần mã hóa")
         if path:
             self.selected_input_path = path
             self.lbl_input_path.config(text=os.path.basename(path), fg="black")
+            self._preview_file_content(path, self.txt_manual_plain)
 
     def _clear_input_file_selection(self):
         self.selected_input_path = ""
         self.lbl_input_path.config(text="Chưa chọn file...", fg="gray")
+        self.txt_manual_plain.config(state="normal")
+        self.txt_manual_plain.delete("1.0", tk.END)
+
+    def _preview_file_content(self, path: str, widget: tk.Text, max_bytes: int = 4000):
+        """Đọc thử nội dung file vừa chọn và hiển thị xem trước lên ô văn bản.
+        Khóa (disable) ô nhập tay để tránh xung đột giữa nội dung file và nội dung gõ tay
+        (đây chính là nguyên nhân trước đây khiến nội dung gõ tay bị bỏ qua âm thầm)."""
+        widget.config(state="normal")
+        widget.delete("1.0", tk.END)
+        try:
+            size = os.path.getsize(path)
+            with open(path, "rb") as f:
+                raw = f.read(max_bytes)
+            try:
+                text = raw.decode("utf-8")
+                preview = text
+                if size > max_bytes:
+                    preview += f"\n\n... [Chỉ xem trước {max_bytes} byte đầu / tổng {size} byte. " \
+                               f"Toàn bộ file vẫn được mã hóa đầy đủ khi bấm Thực Hiện Mã Hóa]"
+            except UnicodeDecodeError:
+                preview = (f"[File nhị phân (ảnh, .docx, .pdf, v.v...) - không hiển thị được dạng văn bản]\n"
+                           f"Kích thước: {size} byte\n"
+                           f"16 byte đầu (hex): {raw[:16].hex(' ')}")
+            widget.insert("1.0", preview)
+        except Exception as e:
+            widget.insert("1.0", f"[Không đọc được nội dung xem trước: {e}]")
+        finally:
+            widget.config(state="disabled")
 
     def _on_encrypt_action(self):
         """Xử lý hành động Mã hóa: Ưu tiên mã hóa Tệp tin, tự chuyển mã hóa văn bản nhập tay nếu trống file."""
+        if not self._read_keys_from_ui():
+            return
         if self.p is None or self.y is None:
             messagebox.showerror("Lỗi Khóa",
                                  "Yêu cầu cấu hình thông số Khóa công khai trước khi chạy tiến trình mã hóa!")
@@ -364,10 +458,13 @@ class ElGamalUI:
                 self.last_encrypted_pairs = ElGamalMath.encrypt_bytes(file_data, self.p, self.g, self.y)
 
                 self._log("Đang biên dịch chuỗi xem trước bản mã...")
-                preview_pairs = self.last_encrypted_pairs[:1000]
-                cipher_preview = " ".join([f"({c1},{c2})" for c1, c2 in preview_pairs])
-                if len(self.last_encrypted_pairs) > 1000:
-                    cipher_preview += " ... [Bản mã dài, chỉ hiển thị trước 1000 khối]"
+                preview_pairs = self.last_encrypted_pairs[:500]
+                cipher_preview = "\n".join(
+                    [f"[Khối {i}]  C1 = {c1}   |   C2 = {c2}" for i, (c1, c2) in enumerate(preview_pairs, 1)]
+                )
+                if len(self.last_encrypted_pairs) > 500:
+                    cipher_preview += f"\n\n... [Tổng cộng {len(self.last_encrypted_pairs)} khối, " \
+                                      f"chỉ hiển thị trước 500 khối. File lưu ra vẫn chứa đầy đủ]"
 
                 self.root.after(0, lambda: update_ui_success(cipher_preview))
             except Exception as e:
@@ -382,9 +479,55 @@ class ElGamalUI:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _parse_labeled_cipher_text(self, text: str):
+        """Phân tích chuỗi văn bản dạng 'C1 = xxx | C2 = yyy' (mỗi khối một dòng) thành danh sách cặp số.
+        Dùng để đọc lại đúng nội dung đang hiển thị trên khung xem trước, kể cả khi người dùng đã sửa tay."""
+        pattern = re.compile(r"C1\s*=\s*(-?\d+).*?C2\s*=\s*(-?\d+)")
+        return [(int(c1), int(c2)) for c1, c2 in pattern.findall(text)]
+
+    def _parse_cipher_text_robust(self, raw_text: str):
+        """Phân tích bản mã từ văn bản, hỗ trợ đồng thời 2 định dạng người dùng hay dùng:
+        1) Định dạng có nhãn copy từ khung xem trước: [Khối n] C1 = xxx | C2 = yyy
+        2) Định dạng đơn giản: c1,c2 c1,c2 ...
+        Trả về tuple (cipher_pairs, error_idx) - error_idx khác None nếu phát hiện sai định dạng."""
+        labeled_pairs = self._parse_labeled_cipher_text(raw_text)
+        if labeled_pairs:
+            return labeled_pairs, None
+
+        cleaned_text = raw_text.replace("(", "").replace(")", " ")
+        tokens = [t for t in cleaned_text.split() if t.strip()]
+        cipher_pairs = []
+        for idx, token in enumerate(tokens, 1):
+            try:
+                c1, c2 = map(int, token.split(","))
+                cipher_pairs.append((c1, c2))
+            except ValueError:
+                return cipher_pairs, idx
+        return cipher_pairs, None
+
     def _on_save_cipher_to_file(self):
         if not self.last_encrypted_pairs:
             return
+
+        displayed_text = self.txt_display_cipher.get("1.0", tk.END)
+        parsed_pairs = self._parse_labeled_cipher_text(displayed_text)
+        pairs_to_save = self.last_encrypted_pairs
+
+        if len(self.last_encrypted_pairs) > 500:
+            # Khung xem trước chỉ hiện 500 khối đầu -> hỏi rõ người dùng muốn lưu gì
+            save_only_shown = messagebox.askyesno(
+                "Bản mã bị cắt bớt khi xem trước",
+                f"Bản mã gốc có {len(self.last_encrypted_pairs)} khối, nhưng khung xem trước chỉ hiển thị 500 khối đầu.\n\n"
+                "Chọn CÓ: lưu đúng nội dung đang hiển thị (gồm cả chỉnh sửa tay nếu có, nhưng sẽ THIẾU phần còn lại).\n"
+                "Chọn KHÔNG: lưu toàn bộ bản mã gốc đầy đủ, chưa qua chỉnh sửa."
+            )
+            if save_only_shown:
+                pairs_to_save = parsed_pairs
+        elif parsed_pairs != self.last_encrypted_pairs:
+            # Nội dung hiển thị khác với dữ liệu gốc trong bộ nhớ -> người dùng đã sửa tay, lưu đúng phần đã sửa
+            pairs_to_save = parsed_pairs
+            self._log("Phát hiện bản mã đã được chỉnh sửa trực tiếp trên giao diện trước khi lưu.")
+
         save_path = filedialog.asksaveasfilename(
             defaultextension=".enc",
             filetypes=[
@@ -398,7 +541,7 @@ class ElGamalUI:
         if save_path:
             try:
                 with open(save_path, "w", encoding="utf-8") as f:
-                    for c1, c2 in self.last_encrypted_pairs:
+                    for c1, c2 in pairs_to_save:
                         f.write(f"{c1},{c2}\n")
                 self._log(f"Đã xuất và lưu file mật tại: {os.path.basename(save_path)}")
                 messagebox.showinfo("Thành công", "Lưu file mật mã hoàn tất!")
@@ -417,13 +560,42 @@ class ElGamalUI:
         if path:
             self.selected_cipher_path = path
             self.lbl_cipher_path.config(text=os.path.basename(path), fg="black")
+            self._preview_cipher_file(path)
 
     def _clear_cipher_file_selection(self):
         self.selected_cipher_path = ""
         self.lbl_cipher_path.config(text="Chưa chọn file mật...", fg="gray")
+        self.txt_manual_cipher.config(state="normal")
+        self.txt_manual_cipher.delete("1.0", tk.END)
+
+    def _preview_cipher_file(self, path: str, max_lines: int = 50):
+        """Xem trước nội dung file mật mã, ghi rõ nhãn C1 / C2 cho từng khối để dễ phân biệt."""
+        self.txt_manual_cipher.config(state="normal")
+        self.txt_manual_cipher.delete("1.0", tk.END)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                lines = [l.strip() for l in f.readlines() if l.strip()]
+            total = len(lines)
+            preview_lines = []
+            for i, line in enumerate(lines[:max_lines], 1):
+                try:
+                    c1, c2 = line.split(",")
+                    preview_lines.append(f"[Khối {i}]  C1 = {c1}   |   C2 = {c2}")
+                except ValueError:
+                    preview_lines.append(f"[Khối {i}]  (Định dạng lỗi: {line})")
+            content = "\n".join(preview_lines)
+            if total > max_lines:
+                content += f"\n\n... [Chỉ xem trước {max_lines}/{total} khối đầu tiên]"
+            self.txt_manual_cipher.insert("1.0", content)
+        except Exception as e:
+            self.txt_manual_cipher.insert("1.0", f"[Không đọc được nội dung xem trước: {e}]")
+        finally:
+            self.txt_manual_cipher.config(state="disabled")
 
     def _on_decrypt_action(self):
         """Xử lý hành động Giải mã: Ưu tiên phân tách đọc từ Tệp tin, tự chuyển chế độ quét chuỗi ký tự gõ tay."""
+        if not self._read_keys_from_ui():
+            return
         if self.p is None or self.x is None:
             messagebox.showerror("Lỗi Khóa",
                                  "Hệ thống cần nạp đầy đủ thông số bộ số (p) và Khóa bí mật (x) để giải mã!")
@@ -442,56 +614,70 @@ class ElGamalUI:
         def worker():
             try:
                 self._log("Đang đọc cấu trúc dữ liệu bản mã đầu vào...")
-                cipher_pairs = []
 
                 if is_file_mode:
                     with open(self.selected_cipher_path, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
+                        raw_text = f.read()
                 else:
-                    # Tiền xử lý dọn dẹp chuỗi dán thủ công loại bỏ các ký tự dấu đóng mở ngoặc bọc ngoài
-                    cleaned_text = cipher_source_text.replace("(", "").replace(")", " ")
-                    lines = cleaned_text.split()
+                    raw_text = cipher_source_text
 
-                # 1. KIỂM TRA ĐỊNH DẠNG/CẤU TRÚC FILE BẢN MÃ TRƯỚC KHI TÍNH TOÁN
-                for idx, line in enumerate(lines, 1):
-                    line = line.strip()
-                    if line:
-                        try:
-                            c1, c2 = map(int, line.split(","))
-                            cipher_pairs.append((c1, c2))
-                        except ValueError:
-                            self.root.after(0, lambda: messagebox.showerror(
-                                "CẢNH BÁO AN NINH",
-                                f"Phát hiện dữ liệu bản mã sai quy tắc định dạng cấu trúc ở khối vị trí thứ {idx}!\n\n"
-                                "Hệ thống chặn tác vụ do bản mã mật đã bị can thiệp chỉnh sửa trái phép."
-                            ))
-                            self._log("Thất bại: File mật mã bị thay đổi cấu trúc định dạng.")
-                            return
+                # Hỗ trợ đồng thời định dạng có nhãn (copy từ khung xem trước) và định dạng đơn giản c1,c2
+                cipher_pairs, error_idx = self._parse_cipher_text_robust(raw_text)
+
+                if error_idx is not None:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "CẢNH BÁO AN NINH",
+                        f"Phát hiện dữ liệu bản mã sai quy tắc định dạng cấu trúc ở khối vị trí thứ {error_idx}!\n\n"
+                        "Hệ thống chặn tác vụ do bản mã mật đã bị can thiệp chỉnh sửa trái phép."
+                    ))
+                    self._log("Thất bại: File mật mã bị thay đổi cấu trúc định dạng.")
+                    return
+
+                if not cipher_pairs:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "Lỗi định dạng",
+                        "Không tìm thấy khối dữ liệu bản mã hợp lệ nào (định dạng 'c1,c2' hoặc 'C1 = .. | C2 = ..')!"
+                    ))
+                    self._log("Thất bại: Không có dữ liệu bản mã hợp lệ.")
+                    return
 
                 self._log(f"Đang thực thi giải mã nghịch đảo mô-đun {len(cipher_pairs)} khối...")
 
-                # 2. KIỂM TRA LỖI TOÁN HỌC KHI GIẢI MÃ (SAI KHÓA HOẶC SỬA SỐ C1)
-                try:
-                    self.last_decrypted_bytes = ElGamalMath.decrypt_bytes(cipher_pairs, self.p, self.x)
-                except ValueError:
+                # 2. KIỂM TRA TOÁN HỌC CHẮC CHẮN: KHÓA BÍ MẬT (x) CÓ KHỚP VỚI (p, g, y) KHÔNG?
+                # Đây là phép kiểm tra xác định (không phải đoán), tách riêng được lỗi do KHÓA.
+                key_valid = True
+                if self.g is not None and self.y is not None:
+                    key_valid = (ElGamalMath.power(self.g, self.x, self.p) == self.y)
+
+                if not key_valid:
+                    # DỪNG NGAY tại đây: nếu khóa đã sai thì không thể kết luận thêm gì về bản mã,
+                    # vì giải mã bằng khóa sai luôn cho ra số "rác" trông như hỏng dù bản mã còn nguyên.
                     self.root.after(0, lambda: messagebox.showerror(
-                        "CẢNH BÁO: SAI KHÓA / SỬA BẢN MÃ",
-                        "Không thể tìm thấy nghịch đảo mô-đun trong quá trình tính toán nền!\n\n"
-                        "Hệ thống xác định:\n"
-                        "- Khóa bí mật (x) bạn nhập đã bị thay đổi không chính xác, HOẶC\n"
-                        "- Thành phần dữ liệu c1 trong file bản mã đã bị chỉnh sửa (Tấn công toàn vẹn)."
+                        "LỖI: KHÓA BÍ MẬT BỊ SỬA",
+                        "Khóa bí mật (x) không khớp với khóa công khai (p, g, y).\n"
+                        "Khóa bí mật đã bị thay đổi sai. Vui lòng kiểm tra lại x."
                     ))
-                    self._log("Thất bại: Lỗi nghịch đảo mô-đun (Sai khóa hoặc Sửa bản mã).")
+                    self._log("Thất bại: Khóa bí mật (x) không khớp với y.")
                     return
 
-                # 3. KIỂM TRA TÍNH HỢP LỆ TRÊN TỪNG BYTE (PHÁT HIỆN SỬA ĐỒI CẢ HAI)
-                if any(b > 255 for b in self.last_decrypted_bytes):
+                # 3. KHÓA ĐÃ ĐÚNG -> THỬ GIẢI MÃ ĐỂ PHÁT HIỆN LỖI Ở PHÍA BẢN MÃ (c1, c2 bị sửa)
+                cipher_corrupted = False
+                try:
+                    self.last_decrypted_bytes = ElGamalMath.decrypt_bytes(cipher_pairs, self.p, self.x)
+                    if any(b > 255 for b in self.last_decrypted_bytes):
+                        cipher_corrupted = True
+                except ValueError:
+                    cipher_corrupted = True
+                    self.last_decrypted_bytes = None
+
+                # 4. THÔNG BÁO NGẮN GỌN KHI BẢN MÃ BỊ SỬA (KHÓA ĐÃ ĐƯỢC XÁC NHẬN ĐÚNG)
+                if cipher_corrupted:
                     self.root.after(0, lambda: messagebox.showerror(
-                        "HỆ THỐNG PHÁT HIỆN LỖI",
-                        "Dữ liệu giải mã vượt quá giới hạn Byte tiêu chuẩn (0-255)!\n\n"
-                        "Thông báo: CẢ BẢN MÃ VÀ KHÓA HỆ THỐNG ĐỀU ĐÃ BỊ SỬA ĐỔI / KHÔNG TRÙNG KHỚP NHAU."
+                        "LỖI: BẢN MÃ BỊ SỬA",
+                        "Khóa bí mật hợp lệ, nhưng dữ liệu bản mã (c1, c2) không giải mã được đúng quy tắc.\n"
+                        "Bản mã đã bị chỉnh sửa trái phép."
                     ))
-                    self._log("Thất bại: Dữ liệu không hợp lệ do sai lệch đồng thời cả khóa và bản mã.")
+                    self._log("Thất bại: Bản mã (c1, c2) bị sửa.")
                     return
 
                 # 4. KIỂM TRA XÁC SUẤT KÝ TỰ RÁC
@@ -536,8 +722,7 @@ class ElGamalUI:
             defaultextension=".txt",
             filetypes=[
                 ("Văn bản thuần túy (*.txt)", "*.txt"),
-                ("Tài liệu Microsoft Word (*.docx)", "*.docx"),
-                ("Tất cả các tệp (*.*)", "*.*")
+                ("Tất cả các tệp - giữ định dạng gốc (*.*)", "*.*")
             ]
         )
         if save_path:
