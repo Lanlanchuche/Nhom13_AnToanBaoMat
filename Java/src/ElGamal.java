@@ -148,5 +148,6 @@ public class ElGamal {
         BigInteger s = c1.modPow(x, p);
         BigInteger sInv = s.modInverse(p);
         return c2.multiply(sInv).mod(p);
-    }
 }
+}
+//END.
