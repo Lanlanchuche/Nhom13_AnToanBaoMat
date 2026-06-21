@@ -2,6 +2,7 @@ import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.*;
@@ -9,6 +10,24 @@ import java.io.*;
 import java.math.BigInteger;
 import java.nio.file.*;
 import java.util.*;
+import java.util.List;
+
+// ===== THÊM MỚI: THƯ VIỆN ĐỌC/GHI DOCX (Apache POI) =====
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
+
+// ===== THÊM MỚI: THƯ VIỆN ĐỌC/GHI PDF (Apache PDFBox 3.x) =====
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.text.PDFTextStripper;
 
 public class ElGamalApp extends JFrame {
 
@@ -198,15 +217,21 @@ public class ElGamalApp extends JFrame {
             JOptionPane.showMessageDialog(parent, "Chưa có khóa hoạt động để xuất file!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        JFileChooser fc = fileChooser(includePrivate ? "private_key.txt" : "public_key.txt");
+        JFileChooser fc = fileChooserSave(includePrivate ? "private_key" : "public_key");
         if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return;
-        try (PrintWriter pw = new PrintWriter(fc.getSelectedFile())) {
-            pw.println("# ElGamal Key File");
-            pw.println("p=" + sharedP); pw.println("g=" + sharedG); pw.println("y=" + sharedY);
-            if (includePrivate) pw.println("x=" + sharedX);
-            status.setText("Đã lưu tệp: " + fc.getSelectedFile().getName()); status.setForeground(SUCCESS);
-        } catch (IOException ex) {
-            status.setText("Lỗi ghi tập tin!"); status.setForeground(DANGER);
+        File target = resolveSaveFile(fc);
+        StringBuilder content = new StringBuilder();
+        content.append("# ElGamal Key File\n");
+        content.append("p=").append(sharedP).append("\n");
+        content.append("g=").append(sharedG).append("\n");
+        content.append("y=").append(sharedY).append("\n");
+        if (includePrivate) content.append("x=").append(sharedX).append("\n");
+        try {
+            writeAnyFile(target, content.toString());
+            status.setText("Đã lưu tệp: " + target.getName()); status.setForeground(SUCCESS);
+        } catch (Exception ex) {
+            status.setText("Lỗi ghi tập tin: " + ex.getMessage()); status.setForeground(DANGER);
+            JOptionPane.showMessageDialog(parent, "Lỗi khi lưu file khóa:\n" + ex.getMessage(), "Lỗi Lưu Tệp", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -280,7 +305,7 @@ public class ElGamalApp extends JFrame {
         });
 
         btnLoadEncKey.addActionListener(e -> {
-            JFileChooser fc = fileChooser(null);
+            JFileChooser fc = fileChooserOpen();
             if (fc.showOpenDialog(root) != JFileChooser.APPROVE_OPTION) return;
             try {
                 Map<String, String> map = readKeyFromFile(fc.getSelectedFile());
@@ -290,22 +315,22 @@ public class ElGamalApp extends JFrame {
                 statusBar.setText("Đã nạp thành công thông số khóa từ file: " + fc.getSelectedFile().getName());
                 statusBar.setForeground(SUCCESS);
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(root, "File khóa không đúng định dạng!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(root, "File khóa không đúng định dạng hoặc lỗi đọc file!\n" + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
         });
 
         btnLoadText.addActionListener(e -> {
-            JFileChooser fc = fileChooser(null);
+            JFileChooser fc = fileChooserOpen();
             if (fc.showOpenDialog(root) != JFileChooser.APPROVE_OPTION) return;
             try {
-                taPlain.setText(Files.readString(fc.getSelectedFile().toPath()));
+                taPlain.setText(readAnyFile(fc.getSelectedFile()));
                 statusBar.setText("Đã nạp file gốc: " + fc.getSelectedFile().getName()); statusBar.setForeground(SUCCESS);
-            } catch (IOException ex) {
-                statusBar.setText("Lỗi đọc file dữ liệu!"); statusBar.setForeground(DANGER);
+            } catch (Exception ex) {
+                statusBar.setText("Lỗi đọc file dữ liệu: " + ex.getMessage()); statusBar.setForeground(DANGER);
             }
         });
 
-        btnSaveText.addActionListener(e -> saveText(root, taPlain.getText(), "plaintext.txt", statusBar));
+        btnSaveText.addActionListener(e -> saveText(root, taPlain.getText(), "plaintext", statusBar));
 
         btnEncrypt.addActionListener(e -> {
             try {
@@ -338,7 +363,7 @@ public class ElGamalApp extends JFrame {
             }
         });
 
-        btnSaveCipher.addActionListener(e -> saveText(root, taCipher.getText(), "ciphertext.txt", statusBar));
+        btnSaveCipher.addActionListener(e -> saveText(root, taCipher.getText(), "ciphertext", statusBar));
 
         return root;
     }
@@ -430,7 +455,6 @@ public class ElGamalApp extends JFrame {
             }
         };
 
-
         DocumentListener dynamicListener = new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { checkRealtimeChanges.run(); }
             public void removeUpdate(DocumentEvent e) { checkRealtimeChanges.run(); }
@@ -443,21 +467,21 @@ public class ElGamalApp extends JFrame {
 
         btnLoadCipher.addActionListener(e -> {
             taCipher.getDocument().removeDocumentListener(dynamicListener);
-            JFileChooser fc = fileChooser(null);
+            JFileChooser fc = fileChooserOpen();
             if (fc.showOpenDialog(root) != JFileChooser.APPROVE_OPTION) {
                 taCipher.getDocument().addDocumentListener(dynamicListener);
                 return;
             }
             try {
-                String content = Files.readString(fc.getSelectedFile().toPath());
+                String content = readAnyFile(fc.getSelectedFile());
                 taCipher.setText(content);
                 originalCipher = content; // Cập nhật chuỗi gốc mốc so sánh
 
                 lblCipherFile.setText("  " + fc.getSelectedFile().getName());
                 lblCipherFile.setForeground(SUCCESS);
                 checkRealtimeChanges.run();
-            } catch (IOException ex) {
-                statusBar.setText("Lỗi đọc file bản mã!"); statusBar.setForeground(DANGER);
+            } catch (Exception ex) {
+                statusBar.setText("Lỗi đọc file bản mã: " + ex.getMessage()); statusBar.setForeground(DANGER);
             }
             taCipher.getDocument().addDocumentListener(dynamicListener);
         });
@@ -465,7 +489,7 @@ public class ElGamalApp extends JFrame {
         btnLoadKeyFile.addActionListener(e -> {
             decP.getDocument().removeDocumentListener(dynamicListener);
             decX.getDocument().removeDocumentListener(dynamicListener);
-            JFileChooser fc = fileChooser(null);
+            JFileChooser fc = fileChooserOpen();
             if (fc.showOpenDialog(root) != JFileChooser.APPROVE_OPTION) {
                 decP.getDocument().addDocumentListener(dynamicListener);
                 decX.getDocument().addDocumentListener(dynamicListener);
@@ -551,42 +575,258 @@ public class ElGamalApp extends JFrame {
             }
         });
 
-        btnSavePlain.addActionListener(e -> saveText(root, taPlain.getText(), "plaintext_decrypted.txt", statusBar));
+        btnSavePlain.addActionListener(e -> saveText(root, taPlain.getText(), "plaintext_decrypted", statusBar));
 
         return root;
     }
 
-    private Map<String, String> readKeyFromFile(File file) throws IOException {
+    private Map<String, String> readKeyFromFile(File file) throws Exception {
         Map<String, String> map = new HashMap<>();
-        for (String line : Files.readAllLines(file.toPath())) {
+        String content = readAnyFile(file);
+        for (String line : content.split("\\r?\\n")) {
             line = line.trim();
-            if (line.startsWith("#") || !line.contains("=")) continue;
+            if (line.isEmpty() || line.startsWith("#") || !line.contains("=")) continue;
             String[] kv = line.split("=", 2);
             map.put(kv[0].trim(), kv[1].trim());
         }
         return map;
     }
 
-    private void saveText(JComponent parent, String text, String defaultName, JLabel status) {
+    private void saveText(JComponent parent, String text, String defaultBaseName, JLabel status) {
         if (text == null || text.trim().isEmpty()) {
             JOptionPane.showMessageDialog(parent, "Không tìm thấy nội dung để xuất file!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        JFileChooser fc = fileChooser(defaultName);
+        JFileChooser fc = fileChooserSave(defaultBaseName);
         if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return;
+        File target = resolveSaveFile(fc);
         try {
-            Files.writeString(fc.getSelectedFile().toPath(), text);
-            status.setText("Xuất file thành công: " + fc.getSelectedFile().getName()); status.setForeground(SUCCESS);
-        } catch (IOException ex) {
-            status.setText("Xảy ra lỗi khi lưu tệp!"); status.setForeground(DANGER);
+            writeAnyFile(target, text);
+            status.setText("Xuất file thành công: " + target.getName()); status.setForeground(SUCCESS);
+        } catch (Exception ex) {
+            status.setText("Xảy ra lỗi khi lưu tệp: " + ex.getMessage()); status.setForeground(DANGER);
+            JOptionPane.showMessageDialog(parent, "Lỗi khi lưu file:\n" + ex.getMessage(), "Lỗi Lưu Tệp", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private JFileChooser fileChooser(String defaultName) {
+    // =====================================================================
+    //  THÊM MỚI: HỘP THOẠI MỞ / LƯU FILE HỖ TRỢ TXT, DOCX, PDF
+    // =====================================================================
+
+    /** Hộp thoại MỞ file — cho phép chọn .txt, .docx hoặc .pdf */
+    private JFileChooser fileChooserOpen() {
         JFileChooser fc = new JFileChooser();
-        fc.setFileFilter(new FileNameExtensionFilter("Text files (*.txt)", "txt"));
-        if (defaultName != null) fc.setSelectedFile(new File(defaultName));
+        FileNameExtensionFilter allFilter  = new FileNameExtensionFilter("Tất cả file hỗ trợ (*.txt, *.docx, *.pdf)", "txt", "docx", "pdf");
+        FileNameExtensionFilter txtFilter  = new FileNameExtensionFilter("Văn bản (*.txt)", "txt");
+        FileNameExtensionFilter docxFilter = new FileNameExtensionFilter("Word Document (*.docx)", "docx");
+        FileNameExtensionFilter pdfFilter  = new FileNameExtensionFilter("PDF (*.pdf)", "pdf");
+        fc.addChoosableFileFilter(allFilter);
+        fc.addChoosableFileFilter(txtFilter);
+        fc.addChoosableFileFilter(docxFilter);
+        fc.addChoosableFileFilter(pdfFilter);
+        fc.setFileFilter(allFilter);
         return fc;
+    }
+
+    /** Hộp thoại LƯU file — cho phép chọn định dạng đích .txt / .docx / .pdf */
+    private JFileChooser fileChooserSave(String defaultBaseName) {
+        JFileChooser fc = new JFileChooser();
+        FileNameExtensionFilter txtFilter  = new FileNameExtensionFilter("Văn bản (*.txt)", "txt");
+        FileNameExtensionFilter docxFilter = new FileNameExtensionFilter("Word Document (*.docx)", "docx");
+        FileNameExtensionFilter pdfFilter  = new FileNameExtensionFilter("PDF (*.pdf)", "pdf");
+        fc.addChoosableFileFilter(txtFilter);
+        fc.addChoosableFileFilter(docxFilter);
+        fc.addChoosableFileFilter(pdfFilter);
+        fc.setFileFilter(txtFilter);
+        if (defaultBaseName != null) fc.setSelectedFile(new File(defaultBaseName + ".txt"));
+        return fc;
+    }
+
+    /** Đảm bảo tên file lưu ra có đuôi đúng với định dạng (filter) người dùng chọn trong hộp thoại */
+    private File resolveSaveFile(JFileChooser fc) {
+        File f = fc.getSelectedFile();
+        String ext = "txt";
+        FileFilter ff = fc.getFileFilter();
+        if (ff instanceof FileNameExtensionFilter) {
+            String[] exts = ((FileNameExtensionFilter) ff).getExtensions();
+            if (exts.length > 0) ext = exts[0];
+        }
+        String name = f.getName();
+        if (!name.toLowerCase().endsWith("." + ext)) {
+            f = new File(f.getParentFile(), stripExtension(name) + "." + ext);
+        }
+        return f;
+    }
+
+    private String stripExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    // =====================================================================
+    //  THÊM MỚI: ĐỌC / GHI NỘI DUNG VĂN BẢN ĐA ĐỊNH DẠNG (TXT / DOCX / PDF)
+    // =====================================================================
+
+    /** Đọc nội dung văn bản từ file .txt / .docx / .pdf, trả về dạng String thuần */
+    private String readAnyFile(File file) throws Exception {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".docx")) {
+            return readDocx(file);
+        } else if (name.endsWith(".pdf")) {
+            return readPdf(file);
+        } else {
+            return Files.readString(file.toPath());
+        }
+    }
+
+    /** Ghi nội dung văn bản ra file .txt / .docx / .pdf tùy theo đuôi tên file đích */
+    private void writeAnyFile(File file, String content) throws Exception {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".docx")) {
+            writeDocx(file, content);
+        } else if (name.endsWith(".pdf")) {
+            writePdf(file, content);
+        } else {
+            Files.writeString(file.toPath(), content);
+        }
+    }
+
+    private String readDocx(File file) throws IOException {
+        try (FileInputStream fis = new FileInputStream(file);
+             XWPFDocument doc = new XWPFDocument(fis)) {
+            StringBuilder sb = new StringBuilder();
+            for (XWPFParagraph para : doc.getParagraphs()) {
+                sb.append(para.getText()).append("\n");
+            }
+            // Bỏ ký tự xuống dòng cuối thừa do vòng lặp thêm vào
+            if (sb.length() > 0) sb.setLength(sb.length() - 1);
+            return sb.toString();
+        }
+    }
+
+    private void writeDocx(File file, String content) throws IOException {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            String[] lines = content.split("\\r?\\n", -1);
+            for (String line : lines) {
+                XWPFParagraph p = doc.createParagraph();
+                XWPFRun run = p.createRun();
+                run.setText(line);
+            }
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                doc.write(fos);
+            }
+        }
+    }
+
+    private String readPdf(File file) throws IOException {
+        try (PDDocument doc = Loader.loadPDF(file)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            return stripper.getText(doc);
+        }
+    }
+
+    // ===== Đường dẫn font hỗ trợ tiếng Việt khi xuất PDF — CHỈNH LẠI nếu máy bạn không có sẵn các file này =====
+    private static final String[] VN_FONT_CANDIDATES = {
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/tahoma.ttf",
+            "/Library/Fonts/Arial Unicode.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    };
+
+    private String findVietnameseFontPath() {
+        for (String path : VN_FONT_CANDIDATES) {
+            if (new File(path).exists()) return path;
+        }
+        return null;
+    }
+
+    private void writePdf(File file, String content) throws Exception {
+        String fontPath = findVietnameseFontPath();
+
+        // Nếu không có font Unicode trên máy, kiểm tra trước xem nội dung có ký tự tiếng Việt có dấu không
+        if (fontPath == null) {
+            for (int i = 0; i < content.length(); i++) {
+                char c = content.charAt(i);
+                if (c > 0x00FF && c != '\n' && c != '\r') {
+                    throw new Exception("Không tìm thấy font Unicode (vd: arial.ttf) trên máy để xuất ký tự "
+                            + "tiếng Việt có dấu ra PDF. Hãy dùng .docx hoặc .txt cho nội dung này, "
+                            + "hoặc sửa đường dẫn font trong mã nguồn (mảng VN_FONT_CANDIDATES).");
+                }
+            }
+        }
+
+        try (PDDocument doc = new PDDocument()) {
+            PDFont font = (fontPath != null) ? PDType0Font.load(doc, new File(fontPath)) : new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+            float fontSize = 12f;
+            float leading = 16f;
+            float margin = 50f;
+            PDRectangle pageSize = PDRectangle.A4;
+            float maxWidth = pageSize.getWidth() - 2 * margin;
+
+            PDPage page = new PDPage(pageSize);
+            doc.addPage(page);
+            PDPageContentStream cs = new PDPageContentStream(doc, page);
+            cs.beginText();
+            cs.setFont(font, fontSize);
+            float y = pageSize.getHeight() - margin;
+            cs.newLineAtOffset(margin, y);
+
+            for (String rawLine : content.split("\\r?\\n", -1)) {
+                List<String> wrapped = wrapTextToWidth(rawLine, font, fontSize, maxWidth);
+                for (String line : wrapped) {
+                    if (y - leading < margin) {
+                        cs.endText();
+                        cs.close();
+                        page = new PDPage(pageSize);
+                        doc.addPage(page);
+                        cs = new PDPageContentStream(doc, page);
+                        cs.beginText();
+                        cs.setFont(font, fontSize);
+                        y = pageSize.getHeight() - margin;
+                        cs.newLineAtOffset(margin, y);
+                    }
+                    cs.showText(line.isEmpty() ? " " : line);
+                    cs.newLineAtOffset(0, -leading);
+                    y -= leading;
+                }
+            }
+            cs.endText();
+            cs.close();
+            doc.save(file);
+        }
+    }
+
+    /** Bẻ dòng văn bản (kể cả "từ" rất dài không có khoảng trắng, ví dụ số nguyên tố lớn) để vừa khổ trang PDF */
+    private List<String> wrapTextToWidth(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
+        List<String> lines = new ArrayList<>();
+        if (text.isEmpty()) { lines.add(""); return lines; }
+
+        String[] words = text.split(" ", -1);
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            // Tách "từ" quá dài (không có khoảng trắng) theo từng ký tự để không bị tràn lề
+            while (font.getStringWidth(word) / 1000f * fontSize > maxWidth) {
+                int cut = word.length();
+                while (cut > 0 && font.getStringWidth(word.substring(0, cut)) / 1000f * fontSize > maxWidth) cut--;
+                if (cut == 0) cut = 1;
+                if (current.length() > 0) { lines.add(current.toString()); current = new StringBuilder(); }
+                lines.add(word.substring(0, cut));
+                word = word.substring(cut);
+            }
+            String candidate = current.length() == 0 ? word : current + " " + word;
+            float width = font.getStringWidth(candidate) / 1000f * fontSize;
+            if (width > maxWidth && current.length() > 0) {
+                lines.add(current.toString());
+                current = new StringBuilder(word);
+            } else {
+                current = new StringBuilder(candidate);
+            }
+        }
+        if (current.length() > 0) lines.add(current.toString());
+        return lines;
     }
 
     private JPanel darkPanel(LayoutManager lm) {
